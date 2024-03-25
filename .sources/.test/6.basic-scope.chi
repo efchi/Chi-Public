@@ -1,0 +1,14 @@
+
+# Var scoping tests.
+# To formalize when we will have an "is" operator for type checking.
+
+# def A => var(x) x; A() x                                 [State, Open(x)]			OK
+# var(x); def A => x; A() x                                [State, State]			OK
+# var(x); set(x = 1) x                                     [Number(1)]				OK
+# var(x); def A => set(x = 1) x; A() x                     [Number(1), Number(1)]	OK
+# def A => var(x) x; A() x                                 [State, Open(x)]			OK
+# def A => var(x) set(x = 1) x; A() x                      [Number(1), Open(x)]		OK
+# var(x) set(x = 1); def A => var(x) set(x = 2) x; A() x   [Number(2), Number(1)]	OK
+
+# Index examples:
+# var(x) set(x = new()) set(x.[hello] = 1) set(x.[sub] = new()) set(x.[sub].y = 2) set(x.[miao].[miao] = 42)

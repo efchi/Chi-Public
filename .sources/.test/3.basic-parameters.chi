@@ -1,0 +1,15 @@
+
+test sequence-as-parameter
+{
+	def A(x) => x;
+
+	check(A(hello world), hello world);
+};
+
+test method-name-injection
+{
+	def Apply-On-42(x) => x(42);
+	def Increment(x) => +(x, 1);
+
+	check(Apply-On-42(Increment), 43);
+};

@@ -1,0 +1,75 @@
+
+# Precedence
+
+test sequence-disambiguation-precedence-1
+{
+	def A(x) => 
+		if eq(x, 0) then b else c a;
+
+	check(A(0), b);
+	check(A(1), c a);
+};
+
+test sequence-disambiguation-precedence-2
+{
+	def A(x) => 
+		if eq(x, 0) then b else (c a);
+
+	check(A(0), b);
+	check(A(1), c a);
+};
+
+test sequence-disambiguation-precedence-3
+{
+	def A(x) => 
+		(if eq(x, 0) then b else c) a;
+
+	check(A(0), b a);
+	check(A(1), c a);
+};
+
+# Concatenation
+
+test sequence-concatenation
+{
+	def A => 
+		a :: (b :: (c) :: d) :: e :: f;
+
+	check(A(), a b c d e f);
+};
+
+test sequence-disambiguation-concatenation-1
+{
+	def A(x) => 
+		a :: if eq(x, 0) then b else c;
+
+	check(A(0), a b);
+	check(A(1), a c);
+};
+
+test sequence-disambiguation-concatenation-2
+{
+	def A(x) => 
+		if eq(x, 0) then b else c :: a;
+	
+	check(A(0), b);
+	check(A(1), c a);
+};
+
+test sequence-disambiguation-concatenation-3
+{
+	def A(x) => 
+		if eq(x, 0) then b else (c :: a);
+	
+	check(A(0), b);
+	check(A(1), c a);
+};
+
+test sequence-disambiguation-concatenation-4
+{
+	def A(x) => 
+		(if eq(x, 0) then b else c) :: a;
+	
+	check(A(0), b a);
+	check(A(1), c a);
+};

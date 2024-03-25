@@ -1,0 +1,20 @@
+
+test structural-equivalence-tests
+{
+	test structural-equivalence-tests-1
+	{
+		check(1, 1);
+		check(1 :: nil, 1 :: nil);
+		check(1 :: 2 :: nil, 1 :: 2 :: nil);
+		check(1 2 3, 1 :: ((nil)) :: 2 :: 3);
+	};
+
+	test structural-equivalence-tests-2
+	{
+		check(nil, nil :: nil);
+		check(1 :: nil, 1 :: nil :: nil);
+		check(1 nil, 1 nil nil);
+		check(nil nil, nil);
+		check({nil nil, nil}, {nil, nil :: ((nil) :: nil)});
+	}
+};

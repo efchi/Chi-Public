@@ -1,0 +1,127 @@
+
+test state-global
+{
+	# Using global state for iteration.
+	
+	var(i);
+	set(i = 10);
+	def R => if eq(i, 0) then (done) else (set(i = --(i)) R());
+	def T() => R();
+
+	check(T(), done);
+};
+
+test state-objects-1
+{
+	# Using global state and nested state objects.
+
+	var(obj);
+	def do-stuff => set(obj.my-key = 42); 
+	def T() => do-stuff() obj.my-key;
+
+	check(T(), 42);
+};
+
+test state-objects
+{
+	# Using global state and nested state objects.
+
+	var(obj);
+	set(obj.my-key = 42);
+	def T() => obj.my-key;
+
+	check(T(), 42);
+};
+
+test state-access-1
+{
+	var(a);
+	set(a.x = 42); 
+
+	var(b)
+	set(b.x.y = 43); 
+
+	def T() => a.x :: b.x.y;
+	check(T(), 42 43);
+};
+
+test state-access-2
+{
+	# Recursive, syntactical set example, with access operator.
+
+	var(a1);
+	set(a1.x = 1); 
+	set(a1.y.z = 2);
+
+	def T() => a1.x :: a1.y.z;
+	check(T(), 1 2);
+};
+
+test state-index-1
+{
+	var(b); 
+	set(b.x = 42);
+	def A() => x; 
+
+	def T() => b.[A()];
+	check(T(), 42);
+};
+
+test state-index-2
+{
+	# Recursive, syntactical set example, with index operator.
+
+	def A => hello; 
+
+	var(state);
+	set(state.[A] = just a name); 
+	set(state.[A()] = world); 
+
+	def T() => state.A :: state.hello;
+
+	check(T(), just a name world);
+};
+
+test state-objects-nested
+{
+	# Using global state and nested state objects.
+
+	var(state1);
+	var(state2);
+	
+	set(state1.substate = state2); 
+	set(state2.my-key = my-value-A); 
+	
+	var(state3)
+	set(state3.substate.my-key = my-value-B); 
+	
+	def T() => state1.substate.my-key :: state3.substate.my-key;
+
+	check(T(), my-value-A my-value-B);
+};
+
+test state-objects-passing
+{
+	# Passing state objects into functions.
+
+	def New-State => new(); 
+	def Mutate(state) => set(state.key = my-value) state; 
+
+	var (my-state = Mutate(New-State()));
+	def T() => my-state.key;
+
+	check(T(), my-value);
+};
+
+test state-substitution
+{
+	# Substitution of a name with a state object.
+
+	def A(s) => s.number; 
+
+	var(state);
+	set(state.number = 42); 
+
+	def T() => A(state);
+	check(T(), 42);
+};

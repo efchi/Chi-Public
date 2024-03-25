@@ -1,0 +1,48 @@
+
+test simple-recursion
+{
+	def R(x) => 
+		if eq(x, 0) then (done) else R(--(x));
+
+	check(R(42), done);
+};
+
+test fibonacci-naive
+{
+	def F(x) => 
+		if eq(x, 0) then (0) 
+		else if eq(x, 1) then (1) 
+		else +(F(-(x, 1)), F(-(x, 2)));
+
+	check(F(10), 55);
+};
+
+test fibonacci-optimized
+{
+	def f(a, b, c) => 
+		if eq(c, 0) then (a) 
+		else f(b, +(a, b), --(c)); 
+	
+	def F(x) => f(0, 1, x); 
+
+	check(F(10), 55);
+};
+
+test factorial-naive
+{
+	def F(x) => 
+		if eq(x, 0) then (1) else mul(x, F(--(x)));
+
+	check(F(10), 3628800);
+};
+
+test factorial-optimized
+{
+	def f(a, b) => 
+		if eq(b, 0) then (a) 
+		else f(mul(a, b), --(b)); 
+	
+	def F(x) => f(1, x);
+
+	check(F(10), 3628800);
+};

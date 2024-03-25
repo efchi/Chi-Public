@@ -1,0 +1,64 @@
+﻿
+####################################################################################################
+Chi Grammar
+v0.1.5 
+####################################################################################################
+
+####################################################################################################
+Meta-Rules
+####################################################################################################
+
+- ε						=> Empty symbol.
+- A						=> Non-terminal symbol.
+- 'a'					=> Terminal symbol.
+- (A)					=> Grouping or precedence.
+- A | B | C | ...		=> One of A, B, C, ...
+- List*<A X>			=> Zero or more repetitions of A, separated by X.
+- List+<A X>			=> One or more repetitions of A, separated by X.
+- A?					=> Optional symbol.
+- EOF					=> End of file.
+
+
+####################################################################################################
+Syntax Rules
+####################################################################################################
+
+Axiom						=> Program EOF
+
+Program						=> List*<Instruction ';'>
+Instruction					=> Test | Definition | Expression
+	Test					=> 'test' Identifier '{' Program '}'								# Test case.
+
+Definition					=> 'def' Signature ('=>' Expression)?								# Definition.	
+	Signature				=> Identifier Parameters?											# Definition signature.
+	Parameters				=> '(' List*<Identifier ','> ')'									# Definition signature parameters.
+
+Expression	=> 
+	| Sequence				=> Expression Expression											# Sequence constructor by juxtaposition.
+	| Disambiguation		=> Expression '::' Expression										# Sequence disambiguation.
+	| Compound				=> Atom Continuation												# Compound expression.
+		Atom				=> Literal | Identifier | Tuple | Precedence						# Atomic expression.
+			| Literal		=> '_' | 'nil' | Integer | Decimal									# Literal symbol.
+			| Tuple			=> '{' List*(Expression ',') '}'									# Tuple constructor.
+			| Precedence	=> '(' Expression ')'												# Precedence rule.
+		Continuation		=>  (Apply | Access | Index | Cast) Continuation | ε				# Compound expression continuation.
+			| Apply			=> '(' List*(Expression ',') ')'									# Application (function call).
+			| Access		=> '.' Expression													# Access by member.
+			| Index 		=> '.' '[' Expression ']'											# Access by index.
+			| Cast			=> ':' Expression													# Type cast.
+	| If-Then-Else?			=> 'if' Expression 'then' Expression ('else' Expression)?			# Conditional.
+	| Close-With			=> 'close' Expression 'with' '(' List*(Binding ',') ')'				# Close-With.
+		Binding				=> '$'? Identifier '=' Expression									# Close-With binding.
+	| Var 					=> 'var' '(' Identifier ('=' Expression )? ')'						# Variable declaration.
+	| Set					=> 'set' '(' L-Value '=' Expression ')'								# Variable assignment.
+		L-Value				=> Identifier L-Continuation										# Set L-Value.
+		L-Continuation		=> (Access | Index) L-Continuation | ε								# Set L-Value continuation.
+
+
+####################################################################################################
+Possbile Next Syntax Rules
+####################################################################################################
+
+Pass	=> 'pass' Expression			# Skip expression value in current sequence.
+Shield	=> '$' Expression				# Shielded expression; see Close-With binding.
+Range	=> '[' 1 '..' n ']'				# Range expression.

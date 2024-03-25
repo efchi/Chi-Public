@@ -1,0 +1,148 @@
+
+test close-1
+{
+	def Phrase => Mary had a little lamb; 
+	def Closed => close Phrase() with (Mary = Julia);
+
+	check(Closed(), Julia had a little lamb);
+};
+
+test close-2
+{
+	def A(x) => x a; 
+	def B(y) => close A(y) with(a = 99);
+
+	check(B(42), 42 99);
+};
+
+test close-3
+{
+	def O(x) => open x; 
+	def A(x) => close O(x) with (open = closed); 
+
+	check(A(42), closed 42);
+};
+
+test close-any-expression
+{
+	check(close +(x, 1) with (x = 8), 9);
+};
+
+test close-primitive
+{
+	def A => eq(1, 1);
+	def T => close A() with (eq = neq);
+
+	# Globals have precedence over dynamics.
+	check (T(), 1);
+};
+
+test close-nil
+{
+	# Close combined with nil.
+
+	def A(x) => x open; 
+	def B(x) => close A(x) with (open = nil); 
+
+	check(B(42), 42);
+};
+
+test close-instance
+{
+	# Close representing type instances.
+
+	def User => { name, age, city }; 
+	def myUser => close User() with (name = efchi, age = 32, city = pa);
+
+	check(myUser(), {efchi, 32, pa});
+};
+
+test close-functions
+{
+	def A(x) => x open1;
+	def B(x) => x open2; 
+	def C => A(y) B(z); 
+	def D => close C() with (open1 = Y, open2 = Z);
+
+	check(D(), y Y z Z);
+};
+
+# Not yet supported.
+#test close-function-name
+#{
+#	def A(x) => unknown-method(x);
+#	def X(x) => +(x, 42);
+#	def K(x) => close A(x) with (unknown-method = X);
+#
+#	check(K(1), 43);
+#};
+
+test close-nested
+{
+	def A(x) => x open1; 
+	def B(x) => close A(x) with (open1 = openA) open2; 
+	def T() => close B(y) with (open2 = openB);
+	
+	check(T(), y openA openB);
+};
+
+test close-nested-inline
+{
+	def A() => x; 
+	def T() => close (close A() with(x = y)) with (y = 42);
+
+	check(T(), 42);
+};
+
+test close-nested-collision
+{
+	# Nested close with name collision, without shielding operator (deep substitution).
+
+	def A => k; 
+	def AA => close A() with (k = a); 
+	def B => k AA(); 
+	def BB => close B() with (k = b);
+
+	def T() => BB();
+	check(T(), b b);
+};
+
+test close-nested-collision-shielded
+{
+	# Nested close with name collision, with shielding operator (shallow substitution).
+
+	def A => k; 
+	def AA => close A() with ($k = a); 
+	def B => k AA(); 
+	def BB => close B() with (k = b);
+
+	def T() => BB();
+	check(T(), b a);
+};
+
+test close-binding-argument
+{
+
+};
+
+test close-binding-name
+{
+	# Substitution on binding name.
+
+	def O() => open; 
+	def A(x) => close O() with (x = 42);
+
+	def T() => A(open);
+	check(T(), 42);
+};
+
+test close-binding-argument
+{
+	# Substitution on binding argument.
+
+	def O() => open; 
+	def A(x) => close O() with (open = x); 
+
+	def T() => A(42);
+	check(T(), 42);
+};
