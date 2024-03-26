@@ -1,19 +1,20 @@
 ﻿using System.Text;
 using Chi.Runtime.Data;
 using Chi.Runtime.Data.Abstract;
+using Chi.Shared;
 
 namespace Chi.Runtime
 {
     public static class Serializer
     {
-        public static string Serialize(IValueNode? atom, bool verbose)
+        public static string Serialize(SymbolTable symbols, IValueNode? atom, bool verbose)
         {
             var builder = new StringBuilder();
-            SerializeRecursive(atom, builder, verbose);
+            SerializeRecursive(symbols, atom, verbose, builder);
             return builder.ToString();
         }
 
-        static void SerializeRecursive(IValueNode? atom, StringBuilder builder, bool verbose)
+        static void SerializeRecursive(SymbolTable symbols, IValueNode? atom, bool verbose, StringBuilder builder)
         {
             int i;
             int count;
@@ -32,11 +33,11 @@ namespace Chi.Runtime
                     return;
 
                 case Open open:
-                    builder.Append((verbose ? "opn:" : "") + open.Value);
+                    builder.Append((verbose ? "opn:" : "") + symbols.Get(open.Symbol));
                     return;
                 
                 case Definition definition:
-                    builder.Append((verbose ? "def:" : "") + definition.Node.Name);
+                    builder.Append((verbose ? "def:" : "") + symbols.Get(definition.Node.Symbol));
                     return;
 
                 case IPrimitive primitive:
@@ -50,7 +51,7 @@ namespace Chi.Runtime
                     count = sequence.Count;
                     foreach (var item in sequence)
                     {
-                        SerializeRecursive(item, builder, verbose);
+                        SerializeRecursive(symbols, item, verbose, builder);
                         if (i++ < count - 1)
                             builder.Append(' ');
                     }
@@ -64,7 +65,7 @@ namespace Chi.Runtime
                     count = tuple.Count;
                     foreach (var item in tuple)
                     {
-                        SerializeRecursive(item, builder, verbose);
+                        SerializeRecursive(symbols, item, verbose, builder);
                         if (i++ < count - 1)
                             builder.Append(',');
                     }
@@ -78,7 +79,7 @@ namespace Chi.Runtime
                     count = program.Count;
                     foreach (var item in program)
                     {
-                        SerializeRecursive(item, builder, verbose);
+                        SerializeRecursive(symbols, item, verbose, builder);
                         if (i++ < count - 1)
                             builder.Append(';');
                     }
@@ -90,11 +91,11 @@ namespace Chi.Runtime
                     builder.Append('<');
                     i = 0;
                     count = state.Count;
-                    foreach (var item in state)
+                    foreach (var (symbol, value) in state)
                     {
-                        builder.Append(item.Key);
+                        builder.Append(symbols.Get(symbol));
                         builder.Append('=');
-                        SerializeRecursive(item.Value, builder, verbose);
+                        SerializeRecursive(symbols, value, verbose, builder);
                         if (i++ < count - 1)
                             builder.Append(',');
                     }

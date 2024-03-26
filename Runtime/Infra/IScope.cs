@@ -7,8 +7,8 @@ namespace Chi.Runtime.Infra
     // dictionaries (eg. Global), others as stacks (eg. Local, Dynamic).
     public interface IScope
     {
-        void Bind(string name, IValueNode value);
-        bool Find(string name, out IValueNode? value);
+        void Bind(int symbol, IValueNode value);
+        bool Find(int symbol, out IValueNode? value);
         void Clear();
     }
 }

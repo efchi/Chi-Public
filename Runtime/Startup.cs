@@ -14,7 +14,7 @@ namespace Chi.Runtime
         /// <summary>
         /// Initializes the startup process by loading files in the .startup directory.
         /// </summary>
-        public static void Initialize(bool startupVerbose)
+        public static void Initialize(SymbolTable symbolTable, bool startupVerbose)
         {
             const bool ignoreWhitespace = true;
             const bool ignoreComments = true;
@@ -43,7 +43,7 @@ namespace Chi.Runtime
                     var source = File.ReadAllText(path);
                     var tokens = Workflow.Lex(source, ignoreWhitespace, ignoreComments, print, verbose);
                     tokens = Workflow.Postprocess(source, tokens, print, verbose);
-                    var ast = Workflow.Parse(tokens.ToArray(), print);
+                    var ast = Workflow.Parse(symbolTable, tokens.ToArray(), print);
 
                     Files.Add((Path.GetFileName(path), ast));
                     passed++;

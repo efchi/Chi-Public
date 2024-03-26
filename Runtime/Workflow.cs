@@ -3,6 +3,7 @@ using Chi.Parsing;
 using Chi.Parsing.Syntax;
 using Chi.Runtime.Abstract;
 using Chi.Runtime.Data;
+using Chi.Shared;
 using System.Diagnostics;
 
 namespace Chi.Runtime
@@ -53,12 +54,12 @@ namespace Chi.Runtime
             return tokens;
         }
 
-        public static ProgramNode Parse(Token[] tokens, bool print)
+        public static ProgramNode Parse(SymbolTable symbols, Token[] tokens, bool print)
         {
             if (print)
                 Output.WriteLine("Parsing...", ConsoleColor.Yellow);
 
-            var parser = new Parser(tokens.ToArray());
+            var parser = new Parser(symbols, tokens.ToArray());
 
             Stopwatch.Start();
             var node = parser.Run();
@@ -66,7 +67,7 @@ namespace Chi.Runtime
 
             if (print)
             {
-                Parser.Print(node);
+                parser.Print(node);
                 Output.WriteLine();
                 Output.WriteLine($"Parse :: Done in {Stopwatch.Elapsed.TotalMilliseconds}ms", ConsoleColor.DarkGray);
             }
@@ -86,7 +87,7 @@ namespace Chi.Runtime
 
             if (print)
             {
-                var serialized = Serializer.Serialize(result, verbose: true);
+                var serialized = Serializer.Serialize(interpreter.Symbols, result, verbose: true);
 
                 if (!string.IsNullOrWhiteSpace(serialized))
                     Output.WriteLine(serialized, ConsoleColor.White);

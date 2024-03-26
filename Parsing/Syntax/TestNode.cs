@@ -4,10 +4,10 @@ namespace Chi.Parsing.Syntax
 {
     public class TestNode : ISyntaxNode
     {
-        public readonly string Name;
+        public readonly int Symbol;
         public readonly ProgramNode Program;
 
-        public TestNode(string name, ProgramNode program) =>
-            (Name, Program) = (name, program);
+        public TestNode(int symbol, ProgramNode program) =>
+            (Symbol, Program) = (symbol, program);
     }
 }

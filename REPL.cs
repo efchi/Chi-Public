@@ -50,7 +50,7 @@ namespace Chi
             CurrentTokens = Workflow.Postprocess(CurrentSource!, CurrentTokens!, print, verbose);
 
         void Parse(bool print) =>
-            CurrentAST = Workflow.Parse(CurrentTokens?.ToArray()!, print);
+            CurrentAST = Workflow.Parse(Interpreter.Symbols, CurrentTokens?.ToArray()!, print);
 
         Program Interpret(bool print, bool verbose) =>
             Workflow.Run(Interpreter, CurrentAST!, print, verbose);
@@ -327,7 +327,7 @@ namespace Chi
                     // This is basically the same semantics as the evaluation of TestNode, extended to ProgramNode.
                     // A test program shall not contain definitions, statements (eg. set) and "free" expressions.
 
-                    var passed = value!.All(r => r is Open open && open.Value == "OK");
+                    var passed = value!.All(r => r is Open open && open.Symbol == Interpreter.OkSymbol);
 
                     if (passed)
                     {

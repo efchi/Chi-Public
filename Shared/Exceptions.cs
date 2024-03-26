@@ -43,6 +43,14 @@ namespace Chi
         }
     }
 
+    class LiteralException : SyntaxException
+    {
+        public LiteralException(Enum expected, string text)
+            : base($"Invalid Literal ({expected}). Matched text is '{text}'.")
+        {
+        }
+    }
+
     class RuntimeException : Exception
     {
         public RuntimeException(string message) : base(message)

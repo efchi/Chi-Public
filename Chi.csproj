@@ -9,6 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove=".pvt\**" />
+    <EmbeddedResource Remove=".pvt\**" />
+    <None Remove=".pvt\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include=".docs\grammar.txt" />
   </ItemGroup>
 

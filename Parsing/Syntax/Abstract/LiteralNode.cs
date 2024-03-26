@@ -1,10 +1,10 @@
 ﻿namespace Chi.Parsing.Syntax.Abstract
 {
-    public abstract class LiteralNode : IExpressionNode
+    public abstract class LiteralNode<T> : IExpressionNode
     {
-        public readonly string Value;
+        public readonly T Value;
 
-        public LiteralNode(string value) =>
+        public LiteralNode(T value) =>
             Value = value;
     }
 }

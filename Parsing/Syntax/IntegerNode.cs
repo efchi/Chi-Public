@@ -2,9 +2,9 @@
 
 namespace Chi.Parsing.Syntax
 {
-    public class IntegerNode : LiteralNode
+    public class IntegerNode : LiteralNode<int>
     {
-        public IntegerNode(string value) : base(value)
+        public IntegerNode(int value) : base(value)
         {
         }
     }

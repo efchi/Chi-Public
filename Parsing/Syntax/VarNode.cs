@@ -4,10 +4,10 @@ namespace Chi.Parsing.Syntax
 {
     internal class VarNode : IExpressionNode
     {
-        public readonly string Name;
+        public readonly int Symbol;
         public readonly IExpressionNode? RValue;
 
-        public VarNode(string name, IExpressionNode? rValue) =>
-            (Name, RValue) = (name, rValue);
+        public VarNode(int symbol, IExpressionNode? rValue) =>
+            (Symbol, RValue) = (symbol, rValue);
     }
 }

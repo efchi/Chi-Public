@@ -3,43 +3,44 @@ using Chi.Runtime.Abstract;
 using Chi.Runtime.Data;
 using Chi.Runtime.Data.Abstract;
 using Chi.Runtime.Infra;
+using Chi.Shared;
 
 namespace Chi.Runtime
 {
     public static class Primitives
     {
-        public static void Register(FixedScope scope)
+        public static void Register(SymbolTable symbolTable, FixedScope scope)
         {
             // Arithmetic Operators
-            scope[Sum.Instance.Signature] = Sum.Instance;
-            scope[Subtract.Instance.Signature] = Subtract.Instance;
-            scope[Multiply.Instance.Signature] = Multiply.Instance;
-            scope[Divide.Instance.Signature] = Divide.Instance;
-            scope[Modulo.Instance.Signature] = Modulo.Instance;
-            scope[Negative.Instance.Signature] = Negative.Instance;
-            scope[Increment.Instance.Signature] = Increment.Instance;
-            scope[Decrement.Instance.Signature] = Decrement.Instance;
+            scope.Bind(symbolTable.Get(Sum.Instance.Signature), Sum.Instance);
+            scope.Bind(symbolTable.Get(Subtract.Instance.Signature), Subtract.Instance);
+            scope.Bind(symbolTable.Get(Multiply.Instance.Signature), Multiply.Instance);
+            scope.Bind(symbolTable.Get(Divide.Instance.Signature), Divide.Instance);
+            scope.Bind(symbolTable.Get(Modulo.Instance.Signature), Modulo.Instance);
+            scope.Bind(symbolTable.Get(Negative.Instance.Signature), Negative.Instance);
+            scope.Bind(symbolTable.Get(Increment.Instance.Signature), Increment.Instance);
+            scope.Bind(symbolTable.Get(Decrement.Instance.Signature), Decrement.Instance);
 
             // Comparison Operators
-            scope[Equal.Instance.Signature] = Equal.Instance;
-            scope[NotEqual.Instance.Signature] = NotEqual.Instance;
-            scope[GreaterThan.Instance.Signature] = GreaterThan.Instance;
-            scope[LessThan.Instance.Signature] = LessThan.Instance;
-            scope[GreaterThanEqual.Instance.Signature] = GreaterThanEqual.Instance;
-            scope[LessThanEqual.Instance.Signature] = LessThanEqual.Instance;
+            scope.Bind(symbolTable.Get(Equal.Instance.Signature), Equal.Instance);
+            scope.Bind(symbolTable.Get(NotEqual.Instance.Signature), NotEqual.Instance);
+            scope.Bind(symbolTable.Get(GreaterThan.Instance.Signature), GreaterThan.Instance);
+            scope.Bind(symbolTable.Get(LessThan.Instance.Signature), LessThan.Instance);
+            scope.Bind(symbolTable.Get(GreaterThanEqual.Instance.Signature), GreaterThanEqual.Instance);
+            scope.Bind(symbolTable.Get(LessThanEqual.Instance.Signature), LessThanEqual.Instance);
 
             // Logical Operators
-            scope[And.Instance.Signature] = And.Instance;
-            scope[Or.Instance.Signature] = Or.Instance;
-            scope[Not.Instance.Signature] = Not.Instance;
-            scope[Xor.Instance.Signature] = Xor.Instance;
+            scope.Bind(symbolTable.Get(And.Instance.Signature), And.Instance);
+            scope.Bind(symbolTable.Get(Or.Instance.Signature), Or.Instance);
+            scope.Bind(symbolTable.Get(Not.Instance.Signature), Not.Instance);
+            scope.Bind(symbolTable.Get(Xor.Instance.Signature), Xor.Instance);
 
             // State Operators
-            scope[New.Instance.Signature] = New.Instance;
+            scope.Bind(symbolTable.Get(New.Instance.Signature), New.Instance);
             
             // Debug Operators
-            scope[StructuralEquivalence.Instance.Signature] = StructuralEquivalence.Instance;
-            scope[Print.Instance.Signature] = Print.Instance;
+            scope.Bind(symbolTable.Get(StructuralEquivalence.Instance.Signature), StructuralEquivalence.Instance);
+            scope.Bind(symbolTable.Get(Print.Instance.Signature), Print.Instance);
         }
 
         #region Arithmetic Operators
@@ -400,7 +401,7 @@ namespace Chi.Runtime
                     return number1.Value == number2.Value;
 
                 if (value1 is Open open1 && value2 is Open open2)
-                    return open1.Value == open2.Value;
+                    return open1.Symbol == open2.Symbol;
 
                 if (value1 is State state1 && value2 is State state2)
                 {
@@ -462,7 +463,7 @@ namespace Chi.Runtime
                     throw new PrimitiveException($"Primitive {GetType().Name}: invalid arguments.");
 
                 var value = interpreter.Eval(arguments[0]);
-                var serialized = Serializer.Serialize(value, verbose: true);
+                var serialized = Serializer.Serialize(interpreter.Symbols, value, verbose: true);
 
                 Output.WriteLine($"Print > {serialized}", ConsoleColor.White);
                 return Nil.Instance;

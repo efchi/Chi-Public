@@ -4,12 +4,12 @@ namespace Chi.Runtime.Infra
 {
     // A concrete Scope implementation as a dictionary.
     // Global scope is a FixedScope.
-    public class FixedScope : Dictionary<string, IValueNode>, IScope
+    public class FixedScope : Dictionary<int, IValueNode>, IScope
     {
-        public void Bind(string name, IValueNode value) =>
-            this[name] = value;
+        public void Bind(int symbol, IValueNode value) =>
+            this[symbol] = value;
 
-        public bool Find(string name, out IValueNode? value) =>
-            TryGetValue(name, out value);
+        public bool Find(int symbol, out IValueNode? value) =>
+            TryGetValue(symbol, out value);
     }
 }

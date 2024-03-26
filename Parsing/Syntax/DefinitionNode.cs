@@ -4,11 +4,11 @@ namespace Chi.Parsing.Syntax
 {
     public class DefinitionNode : IExpressionNode
     {
-        public readonly string Name;
-        public readonly IList<string>? Parameters;
+        public readonly int Symbol;
+        public readonly IList<int>? Parameters;
         public readonly IExpressionNode? Expression;
 
-        public DefinitionNode(string name, IList<string>? parameters, IExpressionNode? expression) =>
-            (Name, Parameters, Expression) = (name, parameters, expression);
+        public DefinitionNode(int symbol, IList<int>? parameters, IExpressionNode? expression) =>
+            (Symbol, Parameters, Expression) = (symbol, parameters, expression);
     }
 }

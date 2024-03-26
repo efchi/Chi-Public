@@ -4,9 +4,9 @@ namespace Chi.Runtime.Data
 {
     public class Open : IValueNode
     {
-        public readonly string Value;
+        public readonly int Symbol;
 
-        public Open(string value) =>
-            Value = value;
+        public Open(int symbol) =>
+            Symbol = symbol;
     }
 }
