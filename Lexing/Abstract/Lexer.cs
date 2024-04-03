@@ -8,7 +8,7 @@
     /// <typeparam name="L">The language description type.</typeparam>
     /// <typeparam name="T">The token type.</typeparam>
     /// <typeparam name="Y">The enumeration representing a token type.</typeparam>
-    public abstract class Lexer<L, T, Y> 
+    public abstract class Lexer<L, T, Y>
         where L : ILanguage<T, Y>
         where T : IToken<Y>, new()
         where Y : struct, Enum
@@ -35,39 +35,31 @@
         #region Constructor & Properties
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="Lexer{L, T}"/> class.
+        /// Initializes a new instance of the <see cref="Lexer{L, T, Y}"/> class.
         /// </summary>
         /// <param name="language">The language description type.</param>
-        /// <param name="source">A reference to the source code.</param>
-        /// <param name="ignoreWhitespace">A flag indicating whether to ignore whitespace tokens.</param>
-        /// <param name="ignoreComments">A flag indicating whether to ignore comment tokens.</param>
-        public Lexer(L language, string source, bool ignoreWhitespace, bool ignoreComments)
-        {
+        public Lexer(L language) =>
             Language = language;
-            Source = source;
-            IgnoreWhitespace = ignoreWhitespace;
-            IgnoreComments = ignoreComments;
-        }
 
         /// <summary>
         /// Gets the language description type associated with the lexer.
         /// </summary>
-        public readonly L Language;
+        readonly L Language;
 
         /// <summary>
         /// Gets the source code being lexed.
         /// </summary>
-        protected readonly string Source;
+        string Source;
 
         /// <summary>
         /// Gets a flag indicating whether to ignore whitespace tokens.
         /// </summary>
-        protected readonly bool IgnoreWhitespace;
+        bool IgnoreWhitespace;
 
         /// <summary>
         /// Gets a flag indicating whether to ignore comment tokens.
         /// </summary>
-        protected readonly bool IgnoreComments;
+        bool IgnoreComments;
 
         /// <summary>
         /// Gets or sets the current index in the source code.
@@ -81,9 +73,16 @@
         /// <summary>
         /// Runs the lexer and returns a list of tokens.
         /// </summary>
+        /// <param name="source">The source code to lex.</param>
+        /// <param name="ignoreWhitespace">A flag indicating whether to ignore whitespace tokens.</param>
+        /// <param name="ignoreComments">A flag indicating whether to ignore comment tokens.</param>
         /// <returns>A list of tokens.</returns>
-        public IList<T> Run()
+        public IList<T> Run(string source, bool ignoreWhitespace, bool ignoreComments)
         {
+            Source = source;
+            IgnoreWhitespace = ignoreWhitespace;
+            IgnoreComments = ignoreComments;
+
             Reset();
             var tokens = new List<T>();
 

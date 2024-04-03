@@ -1,13 +1,14 @@
-﻿using Chi.Parsing.Syntax.Abstract;
+﻿using Chi.Infra;
+using Chi.Parsing.Syntax.Abstract;
 
 namespace Chi.Parsing.Syntax
 {
     public class TestNode : ISyntaxNode
     {
-        public readonly int Symbol;
-        public readonly ProgramNode Program;
+        public readonly Symbol Name;
+        public readonly IList<ISyntaxNode> Instructions;
 
-        public TestNode(int symbol, ProgramNode program) =>
-            (Symbol, Program) = (symbol, program);
+        public TestNode(Symbol name, IList<ISyntaxNode> instructions) =>
+            (Name, Instructions) = (name, instructions);
     }
 }

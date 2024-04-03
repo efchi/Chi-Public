@@ -5,13 +5,16 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyVersion>0.1.5.0</AssemblyVersion>
+    <AssemblyVersion>0.1.6.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove=".pvt\**" />
+    <Compile Remove="Runtime\Infra\**" />
     <EmbeddedResource Remove=".pvt\**" />
+    <EmbeddedResource Remove="Runtime\Infra\**" />
     <None Remove=".pvt\**" />
+    <None Remove="Runtime\Infra\**" />
   </ItemGroup>
 
   <ItemGroup>

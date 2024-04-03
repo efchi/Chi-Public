@@ -15,30 +15,22 @@
         /// <summary>
         /// Gets the language description type associated with the postprocessor.
         /// </summary>
-        public readonly L Language;
+        protected readonly L Language;
 
         /// <summary>
-        /// Gets the source code to be processed.
-        /// </summary>
-        protected readonly string Source;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Postprocessor{L, T}"/> class.
+        /// Initializes a new instance of the <see cref="Postprocessor{L, T, Y}"/> class.
         /// </summary>
         /// <param name="language">The language description type associated with the postprocessor.</param>
-        /// <param name="source">The source code to be processed.</param>
-        public Postprocessor(L language, string source)
-        {
+        public Postprocessor(L language) =>
             Language = language;
-            Source = source;
-        }
 
         /// <summary>
         /// Runs the postprocessor on the given list of tokens.
         /// </summary>
+        /// <param name="source">The original source code.</param>
         /// <param name="tokens">The list of tokens to be processed.</param>
         /// <returns>The processed list of tokens.</returns>
-        public abstract IList<T> Run(IList<T> tokens);
+        public abstract IList<T> Run(string source, IList<T> tokens);
 
         /// <summary>
         /// Cleans the given list of tokens by removing whitespace and comments.

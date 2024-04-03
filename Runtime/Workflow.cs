@@ -1,9 +1,9 @@
-﻿using Chi.Lexing;
+﻿using Chi.Infra;
+using Chi.Lexing;
 using Chi.Parsing;
 using Chi.Parsing.Syntax;
 using Chi.Runtime.Abstract;
 using Chi.Runtime.Data;
-using Chi.Shared;
 using System.Diagnostics;
 
 namespace Chi.Runtime
@@ -17,10 +17,10 @@ namespace Chi.Runtime
             if (print)
                 Output.WriteLine("Lexing...", ConsoleColor.Yellow);
 
-            var lexer = new Lexer(source, ignoreWhitespace, ignoreComments);
+            var lexer = new Lexer();
 
             Stopwatch.Start();
-            var tokens = lexer.Run();
+            var tokens = lexer.Run(source, ignoreWhitespace, ignoreComments);
             Stopwatch.Stop();
 
             if (print)
@@ -38,10 +38,10 @@ namespace Chi.Runtime
             if (print)
                 Output.WriteLine("Postprocessing...", ConsoleColor.Yellow);
 
-            var postprocessor = new Postprocessor(source);
+            var postprocessor = new Postprocessor();
 
             Stopwatch.Start();
-            tokens = postprocessor.Run(tokens);
+            tokens = postprocessor.Run(source, tokens);
             Stopwatch.Stop();
 
             if (print)
@@ -59,10 +59,10 @@ namespace Chi.Runtime
             if (print)
                 Output.WriteLine("Parsing...", ConsoleColor.Yellow);
 
-            var parser = new Parser(symbols, tokens.ToArray());
+            var parser = new Parser();
 
             Stopwatch.Start();
-            var node = parser.Run();
+            var node = parser.Run(symbols, tokens.ToArray());
             Stopwatch.Stop();
 
             if (print)

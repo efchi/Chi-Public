@@ -10,19 +10,9 @@ namespace Chi.Lexing
     public class Postprocessor : Postprocessor<Language, Token, TokenType>
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="Postprocessor"/> class with the specified source code.
-        /// </summary>
-        /// <param name="source">The source code.</param>
-        public Postprocessor(string source) : this(Language.Instance, source)
-        {
-        }
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="Postprocessor"/> class with the specified language and source code.
         /// </summary>
-        /// <param name="language">The language.</param>
-        /// <param name="source">The source code.</param>
-        public Postprocessor(Language language, string source) : base(language, source)
+        public Postprocessor() : base(Language.Instance)
         {
         }
 
@@ -32,7 +22,7 @@ namespace Chi.Lexing
         /// </summary>
         /// <param name="tokens">The list of tokens.</param>
         /// <returns>The processed list of tokens.</returns>
-        public override IList<Token> Run(IList<Token> tokens)
+        public override IList<Token> Run(string source, IList<Token> tokens)
         {
             tokens = Clean(tokens);
 
@@ -65,7 +55,7 @@ namespace Chi.Lexing
                             var newToken = new Token() 
                             {
                                 Type = TokenType.Identifier,
-                                Source = Source,
+                                Source = source,
                                 StartIndex = startIndex,
                                 NextIndex = startIndex + subIdentifier.Length,
                             };
@@ -86,7 +76,7 @@ namespace Chi.Lexing
                         newTokens.Add(new Token() 
                         {
                             Type = TokenType.Dot,
-                            Source = Source,
+                            Source = source,
                             StartIndex = startIndex,
                             NextIndex = startIndex + 1,
                         });

@@ -1,6 +1,8 @@
 ﻿using Chi.Runtime;
 using Chi.Shared;
+using Chi.Infra;
 using System.Reflection;
+using Chi.Runtime.Abstract;
 
 namespace Chi
 {
@@ -8,6 +10,12 @@ namespace Chi
     {
         // This is a signal to the main thread that the background thread has finished writing all the output.
         public static EventWaitHandle OutputWaitHandle { get; } = new(false, EventResetMode.ManualReset);
+
+#pragma warning disable CS8618
+        // Main interpreter and symbol table instances. We make them static for debug purposes.
+        static IInterpreter Interpreter;
+        static SymbolTable Symbols;
+#pragma warning restore CS8618
 
         static void Main(string[] args)
         {
@@ -19,22 +27,22 @@ namespace Chi
                     ConsoleColor.White, ConsoleColor.DarkBlue);
 
                 // Startup.
-                var symbols = new SymbolTable();
-                Startup.Initialize(symbols, startupVerbose: true);
+                Symbols = new SymbolTable();
+                Startup.Initialize(Symbols, startupVerbose: true);
                 
                 // Create interpreter and loop.
-                var interpreter = new Interpreter(symbols, repl: true);
+                Interpreter = new Interpreter(Symbols, repl: true);
                 Output.WriteLine("Chi is Ready! Use /usage for more info", ConsoleColor.Yellow);
                 Output.WriteLine();
-                new REPL(interpreter).Loop();
+                new REPL(Interpreter).Loop();
             }
             else
             {
                 // Run source in File mode.
 
                 // Startup.
-                var symbols = new SymbolTable();
-                Startup.Initialize(symbols, startupVerbose: false);
+                Symbols = new SymbolTable();
+                Startup.Initialize(Symbols, startupVerbose: false);
 
                 // Read and process file.
                 var workingPath = Directory.GetCurrentDirectory();
@@ -45,9 +53,9 @@ namespace Chi
                 tokens = Workflow.Postprocess(source, tokens, print: false, verbose: false);
 
                 // Parse, create interpreter and run.
-                var ast = Workflow.Parse(symbols, tokens.ToArray(), print: false);
-                var interpreter = new Interpreter(symbols, repl: false);
-                Workflow.Run(interpreter, ast, print: true, verbose: false);
+                var ast = Workflow.Parse(Symbols, tokens.ToArray(), print: false);
+                Interpreter = new Interpreter(Symbols, repl: false);
+                Workflow.Run(Interpreter, ast, print: true, verbose: false);
                 
                 // Signal the Output thread that the program terminated.
                 // The Output thread will write the remaining output and then signal back when finished.

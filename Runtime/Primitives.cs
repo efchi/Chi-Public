@@ -1,46 +1,48 @@
-﻿using Chi.Parsing.Syntax.Abstract;
+﻿using Chi.Infra;
+using Chi.Parsing.Syntax.Abstract;
 using Chi.Runtime.Abstract;
 using Chi.Runtime.Data;
 using Chi.Runtime.Data.Abstract;
-using Chi.Runtime.Infra;
-using Chi.Shared;
 
 namespace Chi.Runtime
 {
     public static class Primitives
     {
-        public static void Register(SymbolTable symbolTable, FixedScope scope)
+        public static void Register(SymbolTable symbolTable, DictionaryScope globalScope)
         {
+            void BindPrimitive(IPrimitive primitive) =>
+                globalScope.Bind(symbolTable.GetOrCreate(primitive.Signature), primitive);
+
             // Arithmetic Operators
-            scope.Bind(symbolTable.Get(Sum.Instance.Signature), Sum.Instance);
-            scope.Bind(symbolTable.Get(Subtract.Instance.Signature), Subtract.Instance);
-            scope.Bind(symbolTable.Get(Multiply.Instance.Signature), Multiply.Instance);
-            scope.Bind(symbolTable.Get(Divide.Instance.Signature), Divide.Instance);
-            scope.Bind(symbolTable.Get(Modulo.Instance.Signature), Modulo.Instance);
-            scope.Bind(symbolTable.Get(Negative.Instance.Signature), Negative.Instance);
-            scope.Bind(symbolTable.Get(Increment.Instance.Signature), Increment.Instance);
-            scope.Bind(symbolTable.Get(Decrement.Instance.Signature), Decrement.Instance);
+            BindPrimitive(Sum.Instance);
+            BindPrimitive(Subtract.Instance);
+            BindPrimitive(Multiply.Instance);
+            BindPrimitive(Divide.Instance);
+            BindPrimitive(Modulo.Instance);
+            BindPrimitive(Negative.Instance);
+            BindPrimitive(Increment.Instance);
+            BindPrimitive(Decrement.Instance);
 
             // Comparison Operators
-            scope.Bind(symbolTable.Get(Equal.Instance.Signature), Equal.Instance);
-            scope.Bind(symbolTable.Get(NotEqual.Instance.Signature), NotEqual.Instance);
-            scope.Bind(symbolTable.Get(GreaterThan.Instance.Signature), GreaterThan.Instance);
-            scope.Bind(symbolTable.Get(LessThan.Instance.Signature), LessThan.Instance);
-            scope.Bind(symbolTable.Get(GreaterThanEqual.Instance.Signature), GreaterThanEqual.Instance);
-            scope.Bind(symbolTable.Get(LessThanEqual.Instance.Signature), LessThanEqual.Instance);
+            BindPrimitive(Equal.Instance);
+            BindPrimitive(NotEqual.Instance);
+            BindPrimitive(GreaterThan.Instance);
+            BindPrimitive(LessThan.Instance);
+            BindPrimitive(GreaterThanEqual.Instance);
+            BindPrimitive(LessThanEqual.Instance);
 
             // Logical Operators
-            scope.Bind(symbolTable.Get(And.Instance.Signature), And.Instance);
-            scope.Bind(symbolTable.Get(Or.Instance.Signature), Or.Instance);
-            scope.Bind(symbolTable.Get(Not.Instance.Signature), Not.Instance);
-            scope.Bind(symbolTable.Get(Xor.Instance.Signature), Xor.Instance);
+            BindPrimitive(And.Instance);
+            BindPrimitive(Or.Instance);
+            BindPrimitive(Not.Instance);
+            BindPrimitive(Xor.Instance);
 
             // State Operators
-            scope.Bind(symbolTable.Get(New.Instance.Signature), New.Instance);
-            
+            BindPrimitive(New.Instance);
+
             // Debug Operators
-            scope.Bind(symbolTable.Get(StructuralEquivalence.Instance.Signature), StructuralEquivalence.Instance);
-            scope.Bind(symbolTable.Get(Print.Instance.Signature), Print.Instance);
+            BindPrimitive(StructuralEquivalence.Instance);
+            BindPrimitive(Print.Instance);
         }
 
         #region Arithmetic Operators
@@ -401,7 +403,7 @@ namespace Chi.Runtime
                     return number1.Value == number2.Value;
 
                 if (value1 is Open open1 && value2 is Open open2)
-                    return open1.Symbol == open2.Symbol;
+                    return open1.Value.Code == open2.Value.Code;
 
                 if (value1 is State state1 && value2 is State state2)
                 {

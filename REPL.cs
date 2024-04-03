@@ -318,7 +318,7 @@ namespace Chi
                     Parse(print: false);
 
                     stopwatch.Restart();
-                    var value = Interpret(print: false, verbose: false);
+                    var testResults = Interpret(print: false, verbose: false)!;
                     stopwatch.Stop();
                     totalElapsed += stopwatch.Elapsed.TotalMilliseconds;
 
@@ -327,7 +327,7 @@ namespace Chi
                     // This is basically the same semantics as the evaluation of TestNode, extended to ProgramNode.
                     // A test program shall not contain definitions, statements (eg. set) and "free" expressions.
 
-                    var passed = value!.All(r => r is Open open && open.Symbol == Interpreter.OkSymbol);
+                    var passed = testResults.All(r => r is Open open && open.Value.Code == Interpreter.OkSymbol.Code);
 
                     if (passed)
                     {

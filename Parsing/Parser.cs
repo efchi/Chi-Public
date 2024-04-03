@@ -1,7 +1,7 @@
-﻿using Chi.Lexing;
+﻿using Chi.Infra;
+using Chi.Lexing;
 using Chi.Parsing.Syntax;
 using Chi.Parsing.Syntax.Abstract;
-using Chi.Shared;
 
 namespace Chi.Parsing
 {
@@ -13,17 +13,22 @@ namespace Chi.Parsing
     /// <typeparam name="TokenType">The token type enumeration.</typeparam>
     public class Parser : Abstract.Parser<Language, Token, TokenType>
     {
-        /// <summary>
-        /// The current symbol table: a single lexical context shared across different evaluations.
-        /// </summary>
-        public readonly SymbolTable SymbolTable;
+        #region Constructor & Properties
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Parser"/> class.
         /// </summary>
         /// <param name="source">The source tokens.</param>
-        public Parser(SymbolTable symbolTable, Token[] source) : base(Language.Instance, source) =>
-            SymbolTable = symbolTable;
+        public Parser() : base(Language.Instance)
+        { 
+        }
+
+        /// <summary>
+        /// The current symbol table: a single lexical context shared across different evaluations.
+        /// </summary>
+        SymbolTable SymbolTable;
+
+        #endregion
 
         #region Grammar Helpers
 
@@ -32,6 +37,10 @@ namespace Chi.Parsing
         /// </summary>
         bool IsDisambiguator =>
             Current.Type == TokenType.Colon && Next.Type == TokenType.Colon;
+
+        // For now, TestNode has '}' in the follow of Program.
+        bool IsFollowOfProgram() =>
+            Current.Type == TokenType.EOF || Current.Type == TokenType.BraceClose;
 
         /// <summary>
         /// The follow tokens of an expression.
@@ -63,8 +72,11 @@ namespace Chi.Parsing
         /// Runs the parser and returns the parsed program.
         /// </summary>
         /// <returns>The parsed program.</returns>
-        public ProgramNode Run()
+        public ProgramNode Run(SymbolTable symbolTable, Token[] source)
         {
+            SymbolTable = symbolTable;
+            Source = source;
+
             Reset();
             return ParseAxiom();
         }
@@ -85,26 +97,22 @@ namespace Chi.Parsing
         /// <returns>The parsed program node.</returns>
         ProgramNode ParseProgram()
         {
-            bool IsFollowOfProgram() =>
-                // For now, TestNode has '}' in the follow of Program.
-                Current.Type == TokenType.EOF || Current.Type == TokenType.BraceClose;
-
-            var nodes = new List<ISyntaxNode>();
+            var instructions = new List<ISyntaxNode>();
 
             while (!IsFollowOfProgram())
             {
                 if (Current.Type == TokenType.Test)
-                    nodes.Add(ParseTest());
+                    instructions.Add(ParseTest());
                 else if (Current.Type == TokenType.Def)
-                    nodes.Add(ParseDefinition());
+                    instructions.Add(ParseDefinition());
                 else
-                    nodes.Add(ParseExpression());
+                    instructions.Add(ParseExpression());
 
                 if (!IsFollowOfProgram())
                     Match(TokenType.Semicolon);
             }
 
-            return new ProgramNode(nodes);
+            return new ProgramNode(instructions);
         }
 
         /// <summary>
@@ -120,14 +128,27 @@ namespace Chi.Parsing
             // Match '{'.
             Match(TokenType.BraceOpen);
 
-            var program = ParseProgram();
+            var instructions = new List<ISyntaxNode>();
+
+            while (!IsFollowOfProgram())
+            {
+                if (Current.Type == TokenType.Test)
+                    instructions.Add(ParseTest());
+                else if (Current.Type == TokenType.Def)
+                    instructions.Add(ParseDefinition());
+                else
+                    instructions.Add(ParseExpression());
+
+                if (!IsFollowOfProgram())
+                    Match(TokenType.Semicolon);
+            }
 
             // Match '}'.
             Match(TokenType.BraceClose);
 
             var identifier = token.Text;
-            var symbol = SymbolTable.Get(identifier);
-            return new TestNode(symbol, program);
+            var symbol = SymbolTable.GetOrCreate(identifier);
+            return new TestNode(symbol, instructions);
         }
 
         /// <summary>
@@ -137,7 +158,7 @@ namespace Chi.Parsing
         DefinitionNode ParseDefinition()
         {
             Match(TokenType.Def);
-            var (symbol, parameters) = ParseDefinitionSignature();
+            var (name, parameters) = ParseDefinitionSignature();
 
             IExpressionNode? expression = default;
 
@@ -151,14 +172,14 @@ namespace Chi.Parsing
                 expression = ParseExpression();
             }
 
-            return new DefinitionNode(symbol, parameters, expression);
+            return new DefinitionNode(name, parameters, expression);
         }
 
         /// <summary>
         /// Parses a definition signature.
         /// </summary>
         /// <returns>The parsed signature.</returns>
-        (int identifier, List<int>? parameters) ParseDefinitionSignature()
+        (Symbol name, List<Symbol>? parameters) ParseDefinitionSignature()
         {
             // Match definition identifier.
             var token = Match(TokenType.Identifier);
@@ -167,7 +188,7 @@ namespace Chi.Parsing
             var parameters = ParseDefinitionParameters();
 
             var identifier = token.Text;
-            var symbol = SymbolTable.Get(identifier);
+            var symbol = SymbolTable.GetOrCreate(identifier);
             return (symbol, parameters);
         }
 
@@ -175,7 +196,7 @@ namespace Chi.Parsing
         /// Parses definition parameters.
         /// </summary>
         /// <returns>The parsed definition parameters.</returns>
-        List<int>? ParseDefinitionParameters()
+        List<Symbol>? ParseDefinitionParameters()
         {
             // No parameters (implicit). Terminal (Identifier) definition.
             if (Current.Type != TokenType.ParenOpen)
@@ -183,7 +204,7 @@ namespace Chi.Parsing
 
             Match(TokenType.ParenOpen);
 
-            var parameters = new List<int>();
+            var parameters = new List<Symbol>();
 
             // No parameters (explicit). Non-terminal (Function) definition.
             if (Current.Type == TokenType.ParenClose)
@@ -197,7 +218,7 @@ namespace Chi.Parsing
                 // Match Identifier.
                 var token = Match(TokenType.Identifier);
                 var identifier = token.Text;
-                var symbol = SymbolTable.Get(identifier);
+                var symbol = SymbolTable.GetOrCreate(identifier);
                 parameters.Add(symbol);
 
                 // Match Comma, except for last parameter.
@@ -259,7 +280,7 @@ namespace Chi.Parsing
                 // Identifier rule.
                 var token = Match(TokenType.Identifier);
                 var identifier = token.Text;
-                var symbol = SymbolTable.Get(identifier);
+                var symbol = SymbolTable.GetOrCreate(identifier);
                 expression = new IdentifierNode(symbol);
             }
             else if (Current.Type == TokenType.ParenOpen)
@@ -303,7 +324,7 @@ namespace Chi.Parsing
                 Match(TokenType.ParenClose);
 
                 var identifier = token.Text;
-                var symbol = SymbolTable.Get(identifier);
+                var symbol = SymbolTable.GetOrCreate(identifier);
                 expression = new VarNode(symbol, rValue);
             }
             else if (Current.Type == TokenType.Set)
@@ -343,7 +364,7 @@ namespace Chi.Parsing
                         // Member access rule (x.y).
                         var token = Match(TokenType.Identifier);
                         var identifier = token.Text;
-                        var symbol = SymbolTable.Get(identifier);
+                        var symbol = SymbolTable.GetOrCreate(identifier);
                         expression = new AccessNode(expression, symbol);
                     }
                 }
@@ -489,7 +510,7 @@ namespace Chi.Parsing
                 return new CloseNode(closedExpression, default);
             }
 
-            var bindings = new List<(int symbol, IExpressionNode expression)>();
+            var bindings = new List<(Symbol name, IExpressionNode expression)>();
             do
             {
                 // Shielded identifers are only supported for close parameters for now.
@@ -507,7 +528,7 @@ namespace Chi.Parsing
                 var argumentExpression = ParseExpression();
 
                 var identifier = (shielded ? "$" : "") + token.Text;
-                var symbol = SymbolTable.Get(identifier);
+                var symbol = SymbolTable.GetOrCreate(identifier);
                 bindings.Add((symbol, argumentExpression));
 
                 if (Current.Type != TokenType.ParenClose)
@@ -550,8 +571,20 @@ namespace Chi.Parsing
                     break;
 
                 case TestNode testNode:
-                    Output.Write($"Test {SymbolTable.Get(testNode.Symbol)} {{ ", ConsoleColor.Blue);
-                    PrintTree(testNode.Program);
+                    Output.Write($"Test {testNode.Name.Identifier} {{ ", ConsoleColor.Blue);
+
+                    i = 0;
+                    foreach (var instruction in testNode.Instructions)
+                    {
+                        Output.Write($"Instruction #{i} {{ ", ConsoleColor.Green);
+                        PrintTree(instruction);
+                        Output.Write($" }} ", ConsoleColor.Green);
+
+                        if (i < testNode.Instructions.Count - 1)
+                            Output.Write($" ; ", ConsoleColor.Green);
+                        i++;
+                    }
+
                     Output.Write($" }} ", ConsoleColor.Blue);
                     break;
 
@@ -572,15 +605,15 @@ namespace Chi.Parsing
                     break;
 
                 case IdentifierNode identifierNode:
-                    Output.Write($"[Identifier {SymbolTable.Get(identifierNode.Value)}]", ConsoleColor.White);
+                    Output.Write($"[Identifier {identifierNode.Value.Identifier}]", ConsoleColor.White);
                     break;
 
                 case DefinitionNode definitionNode:
                     var parameterList = definitionNode.Parameters != default ? 
-                        string.Join(",", definitionNode.Parameters.Select(p => SymbolTable.Get(p))) : 
+                        string.Join(",", definitionNode.Parameters.Select(p => p.Identifier)) : 
                         string.Empty;
                     
-                    Output.Write($"Definition {SymbolTable.Get(definitionNode.Symbol)}({parameterList}) {{ ", ConsoleColor.Blue);
+                    Output.Write($"Definition {definitionNode.Name.Identifier}({parameterList}) {{ ", ConsoleColor.Blue);
 
                     if (definitionNode.Expression != default)
                         PrintTree(definitionNode.Expression);
@@ -669,9 +702,9 @@ namespace Chi.Parsing
                     if (closeNode.Bindings != default)
                     {
                         i = 0;
-                        foreach (var (identifier, expression) in closeNode.Bindings)
+                        foreach (var (name, expression) in closeNode.Bindings)
                         {
-                            Output.Write($"Binding #{i}:{SymbolTable.Get(identifier)} {{ ", ConsoleColor.Magenta);
+                            Output.Write($"Binding #{i}:{name.Identifier} {{ ", ConsoleColor.Magenta);
                             PrintTree(expression);
                             Output.Write($" }} ", ConsoleColor.Magenta);
 
@@ -711,7 +744,7 @@ namespace Chi.Parsing
                     PrintTree(accessNode.Expression);
                     Output.Write($" }} ", ConsoleColor.Magenta);
                     Output.Write($"Member: ", ConsoleColor.Magenta);
-                    Output.Write($"[Identifier {SymbolTable.Get(accessNode.Symbol)}]", ConsoleColor.White);
+                    Output.Write($"[Identifier {accessNode.Member.Identifier}]", ConsoleColor.White);
                     Output.Write($" }} ", ConsoleColor.Magenta);
                     break;
 

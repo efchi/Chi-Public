@@ -1,10 +1,11 @@
-﻿using Chi.Parsing.Syntax.Abstract;
+﻿using Chi.Infra;
+using Chi.Parsing.Syntax.Abstract;
 
 namespace Chi.Parsing.Syntax
 {
-    public class IdentifierNode : LiteralNode<int>
+    public class IdentifierNode : LiteralNode<Symbol>
     {
-        public IdentifierNode(int symbol) : base(symbol)
+        public IdentifierNode(Symbol symbol) : base(symbol)
         {
         }
     }

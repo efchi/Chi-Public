@@ -1,6 +1,7 @@
 ﻿using Chi.Shared;
 using Chi.Parsing.Syntax;
 using System.Diagnostics;
+using Chi.Infra;
 
 namespace Chi.Runtime
 {

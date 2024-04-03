@@ -1,12 +1,13 @@
-﻿using Chi.Runtime.Data.Abstract;
+﻿using Chi.Infra;
+using Chi.Runtime.Data.Abstract;
 
 namespace Chi.Runtime.Data
 {
     public class Open : IValueNode
     {
-        public readonly int Symbol;
+        public readonly Symbol Value;
 
-        public Open(int symbol) =>
-            Symbol = symbol;
+        public Open(Symbol value) =>
+            Value = value;
     }
 }

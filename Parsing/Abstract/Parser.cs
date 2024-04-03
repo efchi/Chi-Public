@@ -13,17 +13,20 @@ namespace Chi.Parsing.Abstract
         where T : IToken<Y>, new()
         where Y : struct, Enum
     {
+        #region Constructor & Properties
+
         readonly L Language;
-        readonly T[] Source;
+        protected T[] Source;
         int Index;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Parser{L, T, Y}"/> class.
         /// </summary>
         /// <param name="language">The language.</param>
-        /// <param name="source">The source tokens.</param>
-        public Parser(L language, T[] source) =>
-            (Language, Source) = (language, source);
+        public Parser(L language) =>
+            Language = language;
+
+        #endregion
 
         #region Parser Primitives
 

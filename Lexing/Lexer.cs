@@ -15,8 +15,7 @@ namespace Chi.Lexing
         /// <param name="source">The source code to be lexed.</param>
         /// <param name="ignoreWhitespace">Specifies whether to ignore whitespace during lexing.</param>
         /// <param name="ignoreComments">Specifies whether to ignore comments during lexing.</param>
-        public Lexer(string source, bool ignoreWhitespace, bool ignoreComments)
-            : base(Language.Instance, source, ignoreWhitespace, ignoreComments)
+        public Lexer() : base(Language.Instance)
         {
         }
 
