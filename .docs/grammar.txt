@@ -26,8 +26,9 @@ Syntax Rules
 Axiom						=> Program EOF
 
 Program						=> List*<Instruction ';'>
-Instruction					=> Test | Definition | Expression
+Instruction					=> Test | Module | Definition | Expression
 	Test					=> 'test' Identifier '{' Program '}'								# Test case.
+	Module					=> 'module' Identifier '{' Program '}'								# Module definition.
 
 Definition					=> 'def' Signature ('=>' Expression)?								# Definition.	
 	Signature				=> Identifier Parameters?											# Definition signature.

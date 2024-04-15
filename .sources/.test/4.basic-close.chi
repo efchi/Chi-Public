@@ -120,11 +120,6 @@ test close-nested-collision-shielded
 	check(T(), b a);
 };
 
-test close-binding-argument
-{
-
-};
-
 test close-binding-name
 {
 	# Substitution on binding name.

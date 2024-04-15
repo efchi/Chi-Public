@@ -21,7 +21,7 @@ namespace Chi.Lexing
 
         #region Print Helpers
 
-        public static void Print(IEnumerable<Token> tokens, bool verbose, bool ignoreWhitespace, bool ignoreComments)
+        public static void Print(IEnumerable<Token> tokens, bool verbose)
         {
             var count = tokens.Count();
             var i = 1;
@@ -29,12 +29,6 @@ namespace Chi.Lexing
             foreach (var token in tokens)
             {
                 var kind = (TokenKind)Language.Instance.GetKind(token.Type);
-
-                if (kind == TokenKind.Whitespace && ignoreWhitespace == true)
-                    continue;
-
-                if (kind == TokenKind.Comment && ignoreComments == true)
-                    continue;
 
                 var (foregroundColor, backgroundColor) = kind switch
                 {

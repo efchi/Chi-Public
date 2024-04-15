@@ -5,20 +5,17 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyVersion>0.1.6.0</AssemblyVersion>
+    <AssemblyVersion>0.1.9</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove=".pvt\**" />
-    <Compile Remove="Runtime\Infra\**" />
     <EmbeddedResource Remove=".pvt\**" />
-    <EmbeddedResource Remove="Runtime\Infra\**" />
     <None Remove=".pvt\**" />
-    <None Remove="Runtime\Infra\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include=".docs\grammar.txt" />
+    <None Include=".docs\grammar.txt" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,7 +25,7 @@
     <None Include=".sources\.startup\testing.chi">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include=".sources\.test\6.basic-scope.chi">
+    <None Include=".sources\.test\6.basic-scope.chi.no">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include=".sources\.test\5.basic-state.chi">

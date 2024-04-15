@@ -1,14 +1,16 @@
-﻿using Chi.Infra;
-using Chi.Parsing.Syntax.Abstract;
+﻿using Chi.Parsing.Syntax.Abstract;
 
 namespace Chi.Parsing.Syntax
 {
-    public class TestNode : ISyntaxNode
+    /// <summary>
+    /// Represents a test node, that is, a module whose instructions 
+    /// return OK / KO for language testing purposes.
+    /// </summary>
+    public class TestNode : ModuleNode
     {
-        public readonly Symbol Name;
-        public readonly IList<ISyntaxNode> Instructions;
-
-        public TestNode(Symbol name, IList<ISyntaxNode> instructions) =>
-            (Name, Instructions) = (name, instructions);
+        public TestNode(IdentifierNode name, IList<ISyntaxNode> instructions) 
+            : base(name, instructions) 
+        {
+        }
     }
 }

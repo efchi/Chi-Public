@@ -1,75 +1,35 @@
 ﻿using Chi.Infra;
+using Chi.Parsing.Data;
 using Chi.Parsing.Syntax;
 using Chi.Parsing.Syntax.Abstract;
 using Chi.Runtime.Abstract;
 using Chi.Runtime.Data;
-using Chi.Runtime.Data.Abstract;
+using Chi.Runtime.Values;
+using Chi.Runtime.Values.Abstract;
+using Chi.Semanting;
 
 namespace Chi.Runtime
 {
+    /// <summary>
+    /// Interpreter implementation for the Chi language.
+    /// This interpreter is a stack-based interpreter supporting lexical scope 
+    /// (local and global lookup in O(1)) and dynamic scope.
+    /// </summary>
     public class Interpreter : IInterpreter
     {
-        internal readonly bool REPL;
-        internal IValueNode LastResult = Nil.Instance;
-        
-        public SymbolTable Symbols { get; }
-        public Symbol OkSymbol { get; }
-        public Symbol KoSymbol { get; }
-
-        IRuntimeScope Current => Locals.Peek();
-        readonly DictionaryScope Global = new();
-        readonly Stack<IRuntimeScope> Locals = new();
-        readonly StackScope Dynamic = new();
-        bool IsCurrentGlobal => Current == Global;
-
-        // This option is used to turn sequence optimization on and off for testing purposes.
-        const bool OptimizeSequences = true;
-
-        public Interpreter(SymbolTable symbols, bool repl)
-        {
-            Symbols = symbols;
-            OkSymbol = symbols.GetOrCreate("OK");
-            KoSymbol = symbols.GetOrCreate("KO");
-            REPL = repl;
-            Reset();
-        }
-
-        public void Reset()
-        {
-            // Clear state and invoke garbage collector,
-            // then register primitives and run startup scripts.
-
-            Global.Clear();
-            Dynamic.Clear();
-            Locals.Clear();
-            
-            // Note: this call is slow and will impact test results.
-            GC.Collect();
-
-            // Global scope is always the first in the chain.
-            Locals.Push(Global);
-
-            // Register primitives in global scope.
-            Primitives.Register(Symbols, Global);
-
-            foreach (var (_, ast) in Startup.Files)
-                Run(ast);
-
-            LastResult = Nil.Instance;
-        }
+        readonly StackScope DynamicScope = new();
+        readonly Stack<MemoryFrame> LocalFrames = new();
+        MemoryFrame LocalFrame => LocalFrames.Peek();
 
         public Program Run(ProgramNode program)
         {
             var result = (Program)Eval(program);
-            LastResult = result;
             return result;
         }
 
         #region Evaluation
 
-        // Here the public modifier is required by Primitives
-        // which refer to the Interpreter through the IInterpreter interface
-        // (C# interfaces dont support internal members yet).
+        // The public modifier is required by Primitives.Register, which needs to access the Eval method.
         public IValueNode Eval(ISyntaxNode? node)
         {
             return Normalized(node switch
@@ -79,10 +39,11 @@ namespace Chi.Runtime
                 null or NilNode => Nil.Instance,
 
                 // Wildcard node is supported only in REPL.
-                WildcardNode => REPL ? LastResult : throw new NotSupportedException(),
+                WildcardNode => Context.IsREPL ? Workflow.CurrentResult : throw new NotSupportedException(),
 
                 ProgramNode programNode => EvalProgram(programNode),
                 TestNode testNode => EvalTest(testNode),
+                ModuleNode moduleNode => EvalModule(moduleNode),
                 IntegerNode integerNode => EvalInteger(integerNode),
                 DecimalNode decimalNode => EvalDecimal(decimalNode),
                 IdentifierNode identifierNode => EvalIdentifier(identifierNode),
@@ -100,7 +61,7 @@ namespace Chi.Runtime
                 // A node that has been already evaluated.
                 IValueNode valueNode => valueNode,
 
-                _ => throw new NotSupportedException($"{nameof(Eval)}: Unsupported node type {node.GetType().Name}."),
+                _ => throw new NotSupportedException($"Interpreter :: Eval :: Unsupported node type {node.GetType().Name}."),
             });
         }
 
@@ -119,28 +80,39 @@ namespace Chi.Runtime
         static int testLevel = 1;
         IValueNode EvalTest(TestNode testNode)
         {
-            // A test case is a named program which contains a list of instructions (definitions, statements and expressions).
+            // A test case is a named module which contains a list of instructions (definitions, statements and expressions).
             // Expressions shall evaluate to an Open OK / KO, which comes from calling check() to test for structural equivalence.
-            // A test case is fully passed if it contains only definitions, nils (eg. for sets) and open OKs.
+            // A test case is fully passed if it contains only definitions, nils (eg. for sets) and open OKs, and at least one OK.
             // Tests can be nested, thus test results are recursive.
 
             string indent = new(' ', testLevel * 2);
-            Output.WriteLine($"{indent}Testing {testNode.Name.Identifier}", ConsoleColor.DarkYellow);
-
             testLevel++;
-            var testResults = new List<IValueNode>();
-            foreach (var instruction in testNode.Instructions)
-                testResults.Add(Eval(instruction));
-            testLevel--;
 
-            var passed = testResults.All(r => r is Nil || r is Definition || (r is Open open && open.Value.Code == OkSymbol.Code));
+            try
+            {
+                var testResults = new List<IValueNode>();
 
-            if (passed)
-                Output.WriteLine($"{indent}{testNode.Name.Identifier} OK", ConsoleColor.Green);
-            else
-                Output.WriteLine($"{indent}{testNode.Name.Identifier} KO", ConsoleColor.Red);
+                foreach (var instruction in testNode.Instructions)
+                    testResults.Add(Eval(instruction));
 
-            return passed ? new Open(OkSymbol) : new Open(KoSymbol);
+                var passed = Workflow.IsTestPassed(testResults);
+
+                if (passed)
+                    Output.WriteLine($"{indent}{testNode.Name.Value.String} OK", testLevel == 1 ? ConsoleColor.Green : ConsoleColor.DarkGreen);
+                else
+                    Output.WriteLine($"{indent}{testNode.Name.Value.String} KO", testLevel == 1 ? ConsoleColor.Red : ConsoleColor.DarkRed);
+
+                return passed ? Context.OpenOK : Context.OpenKO;
+            }
+            catch (Exception ex)
+            {
+                Output.WriteLine($"{indent}{testNode.Name.Value.String} KO with exception :: {ex.Message}", ConsoleColor.DarkRed);
+                return Context.OpenKO;
+            }
+            finally
+            {
+                testLevel--;
+            }
         }
 
         static IValueNode EvalInteger(IntegerNode integerNode) =>
@@ -148,6 +120,12 @@ namespace Chi.Runtime
 
         static IValueNode EvalDecimal(DecimalNode decimalNode) =>
             new Number(decimalNode.Value);
+
+        static IValueNode EvalDefinition(DefinitionNode definitionNode) =>
+            definitionNode.Value;
+
+        static IValueNode EvalModule(ModuleNode moduleNode) =>
+            moduleNode.Value;
 
         IValueNode EvalSequence(SequenceNode sequenceNode)
         {
@@ -160,7 +138,7 @@ namespace Chi.Runtime
                 // Evaluate the current sequence item and append it to the value list.
                 var result = Eval(sequenceNode.Expression);
 
-                if (!OptimizeSequences)
+                if (!Context.Options.OptimizeSequences)
                 {
                     // Sequence Optimization is off: just append anything.
                     // The sequence will eventually be normalized by the Normalized method.
@@ -206,7 +184,7 @@ namespace Chi.Runtime
                 // Evaluate the continuation (last sequence value) and append it to the value list.
                 var resultContinuation = Eval(sequenceNode.Continuation);
 
-                if (!OptimizeSequences)
+                if (!Context.Options.OptimizeSequences)
                 {
                     // Sequence Optimization is off: just append anything.
                     // The sequence will eventually be normalized by the Normalized method.
@@ -236,7 +214,7 @@ namespace Chi.Runtime
 
         IValueNode EvalTuple(TupleNode tupleNode)
         {
-            var tuple = new Data.Tuple();
+            var tuple = new Values.Tuple();
 
             if (tupleNode.Items is null)
                 return tuple;
@@ -249,68 +227,99 @@ namespace Chi.Runtime
             return tuple;
         }
 
-        IValueNode EvalIdentifier(IdentifierNode identifierNode)
+        IValueNode EvalIdentifier(IdentifierNode identifierNode) => identifierNode.Location switch
         {
-            // Note: this method is used only for resolving var/lets,
-            // not calls, which have a signature (like F(0)), see Apply.
-
-            // Search for identifier in current scope.
-            if (Current.Find(identifierNode.Value, out var value))
-                return value!;
-
-            // Search for identifier in global scope (when Curent != Global).
-            if (!IsCurrentGlobal && Global.Find(identifierNode.Value, out value))
-                return value!;
-
-            // Search for identifier in dynamic scope.
-            if (Dynamic.Find(identifierNode.Value, out value))
-                return value!;
-
-            // if Identifier not found, it's an open identifier.
-            return new Open(identifierNode.Value);
-        }
-
-        IValueNode EvalDefinition(DefinitionNode definitionNode)
-        {
-            var definitionSignature = GetDefinitionSignature(definitionNode);
-            var definitionSymbol = Symbols.GetOrCreate(definitionSignature);
-
-            // The behavior is the same for local and global scope,
-            // except for redefinition, which is allowed in global scope and REPL mode only.
-
-            var found = Current.Find(definitionSymbol, out var _);
-
-            if (found && !IsCurrentGlobal)
-                throw new RuntimeException($"Redefinition of '{definitionSignature}' in local scope is not allowed.");
+            IdentifierLocation.Unresolved => 
+                throw new UnreachableException($"Interpreter :: EvalIdentifier :: Unresolved identifier node '{identifierNode.Value.String}'."),
             
-            if (found && IsCurrentGlobal && !REPL)
-                throw new RuntimeException($"Redefinition of '{definitionSignature}' in global scope is only allowed in REPL mode.");
-
-            // Binding new definition in current scope.
-            var definition = new Definition(definitionNode);
-            Current.Bind(definitionSymbol, definition);
-
-            return definition;
-        }
+            IdentifierLocation.Global => 
+                Context.GlobalFrame.Read(identifierNode.Index!.Value),
+            
+            IdentifierLocation.Local => 
+                LocalFrame.Read(identifierNode.Index!.Value),
+            
+            IdentifierLocation.Dynamic =>
+                DynamicScope.Find(identifierNode.Value, out var value) ? value! : new Open(identifierNode.Value),
+            
+            _ => throw new UnreachableException($"Interpreter :: EvalIdentifier :: Unsupported identifier location {identifierNode.Location}."),
+        };
 
         IValueNode EvalApply(ApplyNode applyNode)
         {
-            // Cases like chaining application ("()()()") or member access ("x.y()") are still not supported.
+            // Cases like chaining application ("()()()") or member access ("x.y()") are still unsupported.
             if (applyNode.Expression is not IdentifierNode && applyNode.Expression is not Open)
-                throw new RuntimeException($"Invalid apply expression: expected IdentifierNode or Open but got {applyNode.Expression.GetType().Name}.");
+                throw new RuntimeException($"Interpreter :: EvalApply :: Invalid Apply Expression. Expected IdentifierNode or Open but got {applyNode.Expression.GetType().Name}.");
 
             var (applySignature, applyTarget) = GetApplyTarget(applyNode);
 
-            // For now we support apply only for definitions and primitives.
+            // This function gets the evaluation target of the apply node based on its lexical scope.
+            (Symbol signatureSymbol, IValueNode target) GetApplyTarget(ApplyNode node)
+            {
+                switch (node.Location)
+                {
+                    case ApplyKind.Unresolved:
+                        throw new UnreachableException($"Interpreter :: EvalApply :: GetApplyTarget :: Unresolved apply node '{node.Signature.String}'");
+
+                    case ApplyKind.Local:
+                        // Target was resolved in local scope.
+                        return (node.Signature, LocalFrame.Read(node.Index!.Value));
+
+                    case ApplyKind.Global:
+                        // Target was resolved in global scope.
+                        return (node.Signature, Context.GlobalFrame.Read(node.Index!.Value));
+
+                    case ApplyKind.Dynamic:
+                        // Target was not resolved during analysis.
+                        // "Open calls" are not yet supported.
+                        throw new RuntimeException($"Interpreter :: EvalApply :: GetApplyTarget :: Apply target '{node.Signature.String}' not found.");  
+
+                    case ApplyKind.Parametric:
+                        // Target was resolved as a local parameter.
+                        // For now, we assume that passed argument is always an open name.
+                        var argument = LocalFrame.Read(node.Index!.Value);
+                        if (argument is not Open)
+                            throw new RuntimeException($"Interpreter :: EvalApply :: GetApplyTarget :: Argument '{node.Signature.String}' is not an Open.");
+
+                        // Getting the apply dynamic signature.
+                        var dynamicSignature = Context.SymbolTable.GetOrCreate(
+                            node.GetDynamicApplySignature((Open)argument));
+
+                        // Looking for the dynamic signature in the scope chain.
+                        if (!LocalFrame.Scope.RecursiveLookup(dynamicSignature, out var declaration, out var targetScope, out var scopeIndex))
+                            throw new RuntimeException($"Interpreter :: EvalApply :: GetApplyTarget :: 'Signature {dynamicSignature.String}' not found in local or global scope.");
+                        
+                        // For now, only definitions and primitives are supported.
+                        else if (declaration!.Kind != DeclarationKind.Def && declaration.Kind != DeclarationKind.Primitive)
+                            throw new RuntimeException($"Interpreter :: EvalApply :: GetApplyTarget :: 'Signature {dynamicSignature.String}' is not a definition nor a primitive.");
+
+                        return targetScope!.Kind switch
+                        {
+                            LexicalScopeKind.Singleton =>
+                                // Dynamic target was found in global scope.
+                                (dynamicSignature, Context.GlobalFrame.Read(targetScope.GlobalFrameStart!.Value + scopeIndex!.Value)),
+                            
+                            LexicalScopeKind.Instance => 
+                                // Dynamic target was found in local scope.
+                                (dynamicSignature, LocalFrame.Read(scopeIndex!.Value)),
+                            
+                            _ => throw new UnreachableException($"Interpreter :: EvalApply :: GetApplyTarget :: Unsupported lexical scope kind {targetScope.Kind}."),
+                        };
+
+                    default:
+                        throw new UnreachableException($"Interpreter :: EvalApply :: GetApplyTarget :: Unsupported apply node location {node.Location}.");
+                }
+            }
+
             if (applyTarget is Definition definition)
             {
                 var definitionNode = definition.Node;
                 var evaluationTarget = definitionNode.Expression;
+    
+                // Create new local frame.
+                MemoryFrame localScope = new(definitionNode.FramePrototype!);
 
-                // Create new local scope.
-                StackScope localScope = new();
-                
-                // Passing parameters into new local scope.
+                // Passing parameters into the new local frame.
+                // Note that order matters. For now, we only have positional parameters (not named parameters).
                 if (applyNode.Arguments is not null)
                 {
                     for (int i = 0; i < applyNode.Arguments.Count; i++)
@@ -318,103 +327,31 @@ namespace Chi.Runtime
                         var parameter = definitionNode.Parameters![i];
                         var argument = applyNode.Arguments[i];
                         var value = Eval(argument);
-                        localScope.Bind(parameter, value);
+
+                        // Note that the first item in the local scope is the target itself (eg. definition).
+                        localScope.Write(i + 1, value);
                     }
                 }
 
-                // Push local scope.
-                Locals.Push(localScope);
+                // Push the local frame.
+                LocalFrames.Push(localScope);
 
-                // Eval expression.
+                // Recurse.
                 var result = Eval(evaluationTarget);
 
-                // Pop local scope.
-                Locals.Pop();
+                // Pop local frame.
+                LocalFrames.Pop();
 
                 // Return result.
                 return result;
             }
             else if (applyTarget is IPrimitive primitive)
             {
+                // Primitive function application.
                 return primitive.Apply(this, applyNode.Arguments);
             }
             else
-                throw new RuntimeException($"'{applySignature}' is not a definition nor a primitive.");
-
-            // Apply Helpers.
-
-            // Searches signature in local and global scope.
-            bool FindSignature(Symbol signatureSymbol, out IValueNode? target)
-            {
-                if (Current.Find(signatureSymbol, out target))
-                    return true;
-
-                if (!IsCurrentGlobal && Global.Find(signatureSymbol, out target))
-                    return true;
-
-                // Todo: it would be possible to search also in dynamic scope.
-                // Uncertain semantics (Close-With + def).
-
-                return false;
-            }
-
-            // Eg: (ApplyNode, "F") -> Looks for "F(0)" or F(*).
-            bool FindSignatureByName(ApplyNode node, Symbol nameSymbol, out Symbol signatureSymbol, out IValueNode? target)
-            {
-                signatureSymbol = GetApplySignature(node, nameSymbol); // F(0).
-
-                if (FindSignature(signatureSymbol, out target))
-                    return true;
-
-                signatureSymbol = GetApplySignatureGeneric(nameSymbol);
-
-                if (FindSignature(signatureSymbol, out target))
-                    return true;
-
-                return false;
-            }
-
-            (Symbol signatureSymbol, IValueNode target) GetApplyTarget(ApplyNode node)
-            {
-                Symbol formalSymbol;
-
-                if (node.Expression is IdentifierNode identifier1)
-                    formalSymbol = identifier1.Value;
-                else if (node.Expression is Open open1)
-                    formalSymbol = open1.Value;
-                else
-                    // Here is where to support apply to different node types (eg: (fun(x) => x)();)
-                    throw new NotImplementedException($"{nameof(GetApplyTarget)}: Apply Expression is not an IdentifierNode or Open ({node.Expression.GetType().Name} found).");
-
-                if (Current.Find(formalSymbol, out var target))
-                {
-                    // formalName is found in the current scope: resolve it.
-                    Symbol actualSymbol;
-
-                    if (target is IdentifierNode identifier2)
-                        actualSymbol = identifier2.Value;
-                    else if (target is Open open2)
-                        actualSymbol = open2.Value;
-                    else
-                        // Here is where to support passing functions as arguments (eg. a = fun(x) => x).
-                        throw new RuntimeException($"{nameof(GetApplyTarget)}: Actual Identifier '{formalSymbol.Identifier}' is not an IdentifierNode or Open ({target!.GetType().Name} found).");
-
-                    if (FindSignatureByName(node, actualSymbol, out var signatureSymbol, out target))
-                        return (signatureSymbol, target!);
-                    else
-                        throw new RuntimeException($"{nameof(GetApplyTarget)}: No overload found for '{actualSymbol.Identifier}'.");
-                }
-                else
-                {
-                    // formalName is not found in the current scope: interpret it literally.
-                    // Note: this code has a double-check for Current.Find in FindSignatureByName and should be optimizable.
-
-                    if (FindSignatureByName(node, formalSymbol, out var signatureSymbol, out target))
-                        return (signatureSymbol, target!);
-                    else
-                        throw new RuntimeException($"{nameof(GetApplyTarget)}: Formal Identifier '{formalSymbol.Identifier}' not found in local or global scope.");
-                }
-            }
+                throw new RuntimeException($"Interpreter :: EvalApply :: GetApplyTarget :: 'Signature {applySignature}' is not a definition nor a primitive.");
         }
 
         IValueNode EvalClose(CloseNode closeNode)
@@ -422,40 +359,54 @@ namespace Chi.Runtime
             if (closeNode.Bindings is null)
                 return Eval(closeNode.Expression);
 
-            // Computing Close substitutions.
-            var bindings = new List<(Symbol name, IValueNode value)>();
+            // Evaluating close bindings.
+            var bindings = new List<(IdentifierNode name, IValueNode value)>();
             int bindingsCount = 0;
-            
+
             foreach (var (name, expression) in closeNode.Bindings)
             {
                 // Support for shielded identifiers.
-                // Subsitution is without $, and they wont be replaced by nested substitutions.
+                // If the identifier starts with $, it wont be evaluated in its scope, but always treated as an open symbol.
 
-                var identifier = name.Identifier;
+                var identifier = name.Value.String;
                 var shielded = identifier.StartsWith("$");
 
-                Symbol substitutionSymbol;
+                Symbol argumentSymbol;
+
                 if (shielded)
-                    // Shielded: remove the $ and dont evaluate the identifier in dynamic scope.
-                    substitutionSymbol = Symbols.GetOrCreate(identifier[1..]);
+                {
+                    // Shielded: remove the $ and dont evaluate the identifier.
+                    argumentSymbol = Context.SymbolTable.GetOrCreate(identifier[1..]);
+                }
                 else
-                    // Unshielded: evaluate the identifier in dynamic scope as an open symbol.
-                    substitutionSymbol = ((Open)EvalIdentifier(new IdentifierNode(name))).Value;
-                
-                bindings.Add((substitutionSymbol, Eval(expression)));
+                {
+                    // Unshielded: evaluate the identifier as an Open symbol.
+                    var argumentValue = EvalIdentifier(name);
+                    if (argumentValue is not Open open)
+                        throw new RuntimeException($"Interpreter :: EvalClose :: Invalid binding argument: expected Open but got {argumentValue.GetType().Name}.");
+
+                    argumentSymbol = ((Open)EvalIdentifier(name)).Value;
+                }
+
+                var bindingIdentifier = new IdentifierNode(argumentSymbol);
+                bindingIdentifier.ResolveToDynamic();
+
+                bindings.Add((bindingIdentifier, Eval(expression)));
                 bindingsCount++;
             }
 
-            // Push.
+            // Push bindings.
             foreach (var (name, value) in bindings)
-                Dynamic.Bind(name, value);
+                DynamicScope.Bind(name.Value, value);
 
+            // Recurse.
             var result = Eval(closeNode.Expression);
 
-            // Pop Close substitutions.
+            // Pop bindings.
             for (var i = 0; i < bindingsCount; i++)
-                Dynamic.Pop();
-            
+                DynamicScope.Pop();
+
+            // Return result.
             return result;
         }
 
@@ -464,9 +415,9 @@ namespace Chi.Runtime
             var condition = Eval(conditionalNode.If);
 
             if (condition is not Number number)
-                throw new RuntimeException($"Invalid conditional type: expected Number but got {condition.GetType().Name}.");
+                throw new RuntimeException($"Interpreter :: EvalConditional :: Invalid conditional type: expected Number but got {condition.GetType().Name}.");
 
-            // See Library class for boolean semantics.
+            // See Primitive class for boolean semantics.
             if (number.Value != 0)
                 return Eval(conditionalNode.Then);
 
@@ -480,7 +431,7 @@ namespace Chi.Runtime
         {
             var state = (State)Eval(accessNode.Expression);
             var key = accessNode.Member;
-            return state[key.Code];
+            return state[key.Value.Code];
         }
 
         IValueNode EvalIndex(IndexNode accessNode)
@@ -492,102 +443,116 @@ namespace Chi.Runtime
 
         IValueNode EvalVar(VarNode varNode)
         {
-            // Similar to Defintion.
-            var varSignature = varNode.Name;
+            // Computing Var r-value.
+            // Note: var(x) === var(x = new())
 
-            // The behaior is the same for local and global scope,
-            // except for redefinition, which is allowed in global scope and REPL mode only.
+            var rValue = varNode.RValue is not null ? 
+                Eval(varNode.RValue) : 
+                new State();
 
-            var found = Current.Find(varSignature, out var _);
+            // The Var semantics is similar to the identifier case,
+            // except that we write instead of reading into the target frame.
+            
+            switch (varNode.Name.Location)
+            {
+                case IdentifierLocation.Unresolved:
+                    throw new UnreachableException($"Interpreter :: EvalVar :: Unresolved identifier '{varNode.Name.Value.String}'.");
 
-            if (found && !IsCurrentGlobal)
-                throw new RuntimeException($"Redefinition of '{varSignature.Identifier}' in local scope is not allowed.");
+                case IdentifierLocation.Dynamic:
+                    // A var is always resolved in local or global scope.
+                    throw new UnreachableException($"Interpreter :: EvalVar :: Inconsistent identifier location (Dynamic).");
 
-            if (found && IsCurrentGlobal && !REPL)
-                throw new RuntimeException($"Redefinition of '{varSignature.Identifier}' in global scope is only allowed in REPL mode.");
+                case IdentifierLocation.Global:
+                    Context.GlobalFrame.Write(varNode.Name.Index!.Value, rValue);
+                    break;
 
-            // Binding new var in current scope.
+                case IdentifierLocation.Local:
+                    LocalFrame.Write(varNode.Name.Index!.Value, rValue);
+                    break;
 
-            var rValue = varNode.RValue is null ?
-                new State() : // var(x) === var(x = new())
-                Eval(varNode.RValue);
+                default:
+                    throw new UnreachableException($"Interpreter :: EvalVar :: Unsupported identifier location {varNode.Name.Location}.");
+            }
 
-            Current.Bind(varSignature, rValue); 
             return Nil.Instance;
         }
 
         IValueNode EvalSet(SetNode setNode)
         {
             var rValue = Eval(setNode.RValue);
-            
-            if (setNode.LValue is IdentifierNode or Open)
+
+            if (setNode.LValue is IdentifierNode identifierNode)
             {
-                // Simple Set. (set x = 1)
+                // Simple set (set x = 1).
                 // x must be defined in local or global scope.
 
-                Symbol name;
-                if (setNode.LValue is IdentifierNode identifierNode)
-                    name = identifierNode.Value;
-                else if (setNode.LValue is Open open)
-                    name = open.Value;
-                else
-                    throw new NotSupportedException();
+                switch (identifierNode.Location)
+                {
+                    case IdentifierLocation.Global:
+                        Context.GlobalFrame.Write(identifierNode.Index!.Value, rValue);
+                        break;
+                    
+                    case IdentifierLocation.Local:
+                        LocalFrame.Write(identifierNode.Index!.Value, rValue);
+                        break;
 
-                if (Current.Find(name, out var _))
-                    Current.Bind(name, rValue);
-                else if (!IsCurrentGlobal && Global.Find(name, out _))
-                    Global.Bind(name, rValue);
-                else
-                    throw new RuntimeException($"Set: Identifier '{name.Identifier}' not found in local or global scope.");
+                    case IdentifierLocation.Dynamic:
+                        throw new RuntimeException($"Interpreter :: EvalSet :: Identifier '{identifierNode.Value.String}' not found in local or global scope.");                 
+                            
+                    default: 
+                        throw new UnreachableException($"Interpreter :: EvalSet :: Unsupported identifier location {identifierNode.Location}");
+                }
             }
             else if (setNode.LValue is AccessNode accessNode)
             {
-                // Complex Set. (set x(...).y = 1)
+                // Complex Set (set x(...).y = 1).
                 // x must be defined in local or global scope *and* must be a state.
 
                 var targetState = GetTargetState(accessNode.Expression);
                 var targetName = accessNode.Member;
-                targetState[targetName.Code] = rValue;
+                targetState[targetName.Value.Code] = rValue;
             }
             else if (setNode.LValue is IndexNode indexNode)
             {
-                // Complex Set. (set x(...).[y]... = 1)
+                // Complex Set (set x(...).[y]... = 1).
                 // x must be defined in local or global scope *and* must be a state.
 
                 var targetState = GetTargetState(indexNode.Expression);
-                var targetName = (Open)Eval(indexNode.Accessor);
+
+                var accessorValue = Eval(indexNode.Accessor);
+                if (accessorValue is not Open targetName)
+                    throw new RuntimeException($"Interpreter :: EvalSet :: Invalid index accessor: expected Open but got {accessorValue.GetType().Name}.");
+
                 targetState[targetName.Value.Code] = rValue;
             }
             else
-                throw new UnreachableException();
+                throw new UnreachableException($"Interpreter :: EvalSet :: Unsupported node type {setNode.GetType().Name}");
 
             return Nil.Instance;
 
-            // Set Helpers.
-
+            // This methods gets the target state of a set node based on its lexical scope.
             State GetTargetState(IExpressionNode lValue)
             {
-                if (lValue is IdentifierNode or Open)
+                if (lValue is IdentifierNode identifierNode2) 
                 {
-                    Symbol name;
-                    if (lValue is IdentifierNode identifierNode)
-                        name = identifierNode.Value;
-                    else if (lValue is Open open)
-                        name = open.Value;
-                    else
-                        throw new NotSupportedException();
+                    // Base case: getting root state.
+                    var value = identifierNode2.Location switch
+                    {
+                        IdentifierLocation.Global =>
+                            Context.GlobalFrame.Read(identifierNode2.Index!.Value),
+                    
+                        IdentifierLocation.Local =>
+                            LocalFrame.Read(identifierNode2.Index!.Value),
+                    
+                        IdentifierLocation.Dynamic =>
+                            throw new RuntimeException($"Interpreter :: EvalSet :: GetTargetState :: Identifier '{identifierNode2.Value.String}' not found in local or global scope."),
 
-                    var found = Current.Find(name, out var value);
-
-                    if (!found && !IsCurrentGlobal)
-                        found = Global.Find(name, out value);
-
-                    if (!found)
-                        throw new RuntimeException($"Set: Identifier '{name.Identifier}' not found in local or global scope.");
+                        _ => throw new UnreachableException($"Interpreter :: EvalSet :: GetTargetState :: Unsupported identifier location {identifierNode2.Location}")
+                    };
 
                     if (value is not State state)
-                        throw new RuntimeException($"Set: Identifier '{name.Identifier}' is not a State.");
-
+                        throw new RuntimeException($"Interpreter :: EvalSet :: GetTargetState ::: Identifier '{identifierNode2.Value.String}' is not a State.");
+                    
                     return state;
                 }
                 else if (lValue is AccessNode accessNode)
@@ -595,19 +560,19 @@ namespace Chi.Runtime
                     var nextState = GetTargetState(accessNode.Expression);
                     var key = accessNode.Member;
 
-                    if (!nextState.ContainsKey(key.Code))
+                    if (!nextState.ContainsKey(key.Value.Code))
                     {
                         // Auto-create nested states.
                         var newState = new State();
-                        nextState[key.Code] = newState;
+                        nextState[key.Value.Code] = newState;
                         return newState;
                     }
                     else
                     {
-                        if (nextState[key.Code] is State state)
+                        if (nextState[key.Value.Code] is State state)
                             return state;
 
-                        throw new RuntimeException($"Set: Access: Identifier '{key.Identifier}' is not a State.");    
+                        throw new RuntimeException($"Interpreter :: EvalSet :: GetTargetState :: Access identifier '{key.Value.String}' is not a State.");
                     }
                 }
                 else if (lValue is IndexNode indexNode)
@@ -627,11 +592,11 @@ namespace Chi.Runtime
                         if (nextState[key.Value.Code] is State state)
                             return state;
 
-                        throw new RuntimeException($"Set: Index: Identifier '{key.Value.Identifier}' is not a State.");    
+                        throw new RuntimeException($"Interpreter :: EvalSet :: GetTargetState :: Index identifier '{key.Value.String}' is not a State.");
                     }
                 }
                 else
-                    throw new UnreachableException();
+                    throw new UnreachableException($"Interpreter :: EvalSet :: GetTargetState :: Unsupported node type {lValue.GetType().Name}.");
             }
         }
 
@@ -661,7 +626,7 @@ namespace Chi.Runtime
                     }
                     return program;
 
-                case Data.Tuple tuple:
+                case Values.Tuple tuple:
 
                     // Tuples preserve structure, so we don't skip Nils inside them.
                     for (var i = 0; i < tuple.Count; i++)
@@ -702,34 +667,6 @@ namespace Chi.Runtime
                 default:
                     return atom;
             }
-        }
-
-        #endregion
-
-        #region Other Helpers
-
-        string GetDefinitionSignature(DefinitionNode definition) =>
-            ((definition.Parameters?.Count ?? 0) == 0) ?
-                $"{definition.Name.Identifier}(0)" :
-                $"{definition.Name.Identifier}({definition.Parameters!.Count})";
-
-        Symbol GetApplySignature(ApplyNode applyNode, Symbol actualApplySymbol)
-        {
-            var signature = ((applyNode.Arguments?.Count ?? 0) == 0) ?
-                $"{actualApplySymbol.Identifier}(0)" :
-                $"{actualApplySymbol.Identifier}({applyNode.Arguments!.Count})";
-
-            var signatureSymbol = Symbols.GetOrCreate(signature);
-            return signatureSymbol;
-        }
-
-        // Signature for generic apply with variable params number,
-        // used for some primitive functions (get, set).
-        Symbol GetApplySignatureGeneric(Symbol actualApplySymbol)
-        {
-            var signature = $"{actualApplySymbol.Identifier}(*)";
-            var signatureSymbol = Symbols.GetOrCreate(signature);
-            return signatureSymbol;
         }
 
         #endregion

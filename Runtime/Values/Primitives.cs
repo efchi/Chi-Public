@@ -1,17 +1,28 @@
 ﻿using Chi.Infra;
+using Chi.Parsing.Data;
 using Chi.Parsing.Syntax.Abstract;
 using Chi.Runtime.Abstract;
-using Chi.Runtime.Data;
-using Chi.Runtime.Data.Abstract;
+using Chi.Runtime.Values.Abstract;
+using Chi.Semanting;
 
-namespace Chi.Runtime
+namespace Chi.Runtime.Values
 {
+    /// <summary>
+    /// Primitive functions of the language.
+    /// </summary>
     public static class Primitives
     {
-        public static void Register(SymbolTable symbolTable, DictionaryScope globalScope)
+        /// <summary>
+        /// Registers all primitive functions into the symbol table and the global scope.
+        /// </summary>
+        public static void Register(SymbolTable symbolTable, LexicalScope globalScope)
         {
-            void BindPrimitive(IPrimitive primitive) =>
-                globalScope.Bind(symbolTable.GetOrCreate(primitive.Signature), primitive);
+            void BindPrimitive(IPrimitive primitive)
+            {
+                var signatureSymbol = symbolTable.GetOrCreate(primitive.Signature);
+                var declaration = new Declaration(DeclarationKind.Primitive, signatureSymbol, globalScope, primitive);
+                globalScope.Append(declaration);
+            }
 
             // Arithmetic Operators
             BindPrimitive(Sum.Instance);
@@ -288,7 +299,7 @@ namespace Chi.Runtime
 
                 var value1 = ((Number)interpreter.Eval(arguments[0])).Value!;
                 var value2 = ((Number)interpreter.Eval(arguments[1])).Value!;
-                return new Number((value1 != 0 && value2 != 0) ? 1 : 0);
+                return new Number(value1 != 0 && value2 != 0 ? 1 : 0);
             }
         }
 
@@ -304,7 +315,7 @@ namespace Chi.Runtime
 
                 var value1 = ((Number)interpreter.Eval(arguments[0])).Value!;
                 var value2 = ((Number)interpreter.Eval(arguments[1])).Value!;
-                return new Number((value1 != 0 || value2 != 0) ? 1 : 0);
+                return new Number(value1 != 0 || value2 != 0 ? 1 : 0);
             }
         }
 
@@ -335,7 +346,7 @@ namespace Chi.Runtime
 
                 var value1 = ((Number)interpreter.Eval(arguments[0])).Value!;
                 var value2 = ((Number)interpreter.Eval(arguments[1])).Value!;
-                return new Number((value1 != 0 ^ value2 != 0) ? 1 : 0);
+                return new Number(value1 != 0 ^ value2 != 0 ? 1 : 0);
             }
         }
 
@@ -343,7 +354,6 @@ namespace Chi.Runtime
 
         #region State Operators
 
-        // Todo: initialize state from named tuple + syntactical new (new:{tuple}).
         public class New : IPrimitive
         {
             public static IPrimitive Instance => new New();
@@ -394,10 +404,10 @@ namespace Chi.Runtime
                 value2 ??= Nil.Instance;
 
                 if (value1!.GetType() != value2!.GetType())
-                    return false; // base case; different types.
+                    return false; // Base case; different types.
 
                 if (value1 is Nil && value2 is Nil)
-                    return true; // base case; nil.
+                    return true; // Base case; nil.
 
                 if (value1 is Number number1 && value2 is Number number2)
                     return number1.Value == number2.Value;
@@ -436,7 +446,7 @@ namespace Chi.Runtime
                     return true;
                 }
 
-                if (value1 is Data.Tuple tup1 && value2 is Data.Tuple tup2)
+                if (value1 is Tuple tup1 && value2 is Tuple tup2)
                 {
                     if (tup1.Count != tup2.Count)
                         return false;
@@ -465,7 +475,7 @@ namespace Chi.Runtime
                     throw new PrimitiveException($"Primitive {GetType().Name}: invalid arguments.");
 
                 var value = interpreter.Eval(arguments[0]);
-                var serialized = Serializer.Serialize(interpreter.Symbols, value, verbose: true);
+                var serialized = Serializer.Serialize(Context.SymbolTable, value, verbose: true);
 
                 Output.WriteLine($"Print > {serialized}", ConsoleColor.White);
                 return Nil.Instance;

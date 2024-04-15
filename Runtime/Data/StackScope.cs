@@ -1,11 +1,14 @@
-﻿using Chi.Runtime.Data.Abstract;
+﻿using Chi.Parsing.Data;
+using Chi.Runtime.Values.Abstract;
 
-namespace Chi.Infra
+namespace Chi.Runtime.Data
 {
-    // A concrete scope implementation as a stack.
-    // Used for dynamic scope and local scopes.
-    // Keeping int as key and not Symbol for performance reasons.
-    public class StackScope : Stack<(int symbolCode, IValueNode value)>, IRuntimeScope
+    /// <summary>
+    /// A concrete dynamic scope implementation as a dictionary.
+    /// Previously used for local scope, now it's only used for dynamic scope.
+    /// Keeping int as key (not Symbol) for performance reasons.
+    /// </summary>
+    public class StackScope : Stack<(int symbolCode, IValueNode value)>, IDynamicScope
     {
         public void Bind(Symbol symbol, IValueNode value) =>
             Push((symbol.Code, value));

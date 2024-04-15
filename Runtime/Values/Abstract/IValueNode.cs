@@ -1,4 +1,4 @@
-﻿namespace Chi.Runtime.Data.Abstract
+﻿namespace Chi.Runtime.Values.Abstract
 {
     public interface IValueNode
     {

@@ -45,6 +45,7 @@
         Var,
         Set,
         Test,
+        Module,
 
         // Number Tokens.
         Integer,

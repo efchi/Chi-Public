@@ -1,5 +1,5 @@
-﻿using Chi.Infra;
-using Chi.Lexing;
+﻿using Chi.Lexing;
+using Chi.Parsing.Data;
 using Chi.Parsing.Syntax;
 using Chi.Parsing.Syntax.Abstract;
 
@@ -26,7 +26,7 @@ namespace Chi.Parsing
         /// <summary>
         /// The current symbol table: a single lexical context shared across different evaluations.
         /// </summary>
-        SymbolTable SymbolTable;
+        SymbolTable Symbols;
 
         #endregion
 
@@ -72,9 +72,9 @@ namespace Chi.Parsing
         /// Runs the parser and returns the parsed program.
         /// </summary>
         /// <returns>The parsed program.</returns>
-        public ProgramNode Run(SymbolTable symbolTable, Token[] source)
+        public ProgramNode Run(SymbolTable symbols, Token[] source)
         {
-            SymbolTable = symbolTable;
+            Symbols = symbols;
             Source = source;
 
             Reset();
@@ -92,17 +92,18 @@ namespace Chi.Parsing
         }
 
         /// <summary>
-        /// Parses a program.
+        /// Parses a list of instructions.
         /// </summary>
-        /// <returns>The parsed program node.</returns>
-        ProgramNode ParseProgram()
+        List<ISyntaxNode> ParseInstructions()
         {
             var instructions = new List<ISyntaxNode>();
 
             while (!IsFollowOfProgram())
             {
                 if (Current.Type == TokenType.Test)
-                    instructions.Add(ParseTest());
+                    instructions.Add(ParseModule(TokenType.Test));
+                else if (Current.Type == TokenType.Module)
+                    instructions.Add(ParseModule(TokenType.Module));
                 else if (Current.Type == TokenType.Def)
                     instructions.Add(ParseDefinition());
                 else
@@ -112,43 +113,42 @@ namespace Chi.Parsing
                     Match(TokenType.Semicolon);
             }
 
+            return instructions;
+        }
+
+        /// <summary>
+        /// Parses a program.
+        /// </summary>
+        /// <returns>The parsed program node.</returns>
+        ProgramNode ParseProgram()
+        {
+            var instructions = ParseInstructions();
             return new ProgramNode(instructions);
         }
 
         /// <summary>
         /// Parses a test case.
         /// </summary>
-        TestNode ParseTest()
+        ModuleNode ParseModule(TokenType moduleTokenType)
         {
-            Match(TokenType.Test);
+            Match(moduleTokenType);
 
             // Match Identifier.
             var token = Match(TokenType.Identifier);
-            
-            // Match '{'.
+            var identifier = token.Text;
+            var symbol = Symbols.GetOrCreate(identifier);
+
             Match(TokenType.BraceOpen);
-
-            var instructions = new List<ISyntaxNode>();
-
-            while (!IsFollowOfProgram())
-            {
-                if (Current.Type == TokenType.Test)
-                    instructions.Add(ParseTest());
-                else if (Current.Type == TokenType.Def)
-                    instructions.Add(ParseDefinition());
-                else
-                    instructions.Add(ParseExpression());
-
-                if (!IsFollowOfProgram())
-                    Match(TokenType.Semicolon);
-            }
-
-            // Match '}'.
+            var instructions = ParseInstructions();
             Match(TokenType.BraceClose);
 
-            var identifier = token.Text;
-            var symbol = SymbolTable.GetOrCreate(identifier);
-            return new TestNode(symbol, instructions);
+            return moduleTokenType switch
+            {
+                TokenType.Test => new TestNode(new IdentifierNode(symbol), instructions),
+                TokenType.Module => new ModuleNode(new IdentifierNode(symbol), instructions),
+
+                _ => throw new NotSupportedException($"Parser :: ParseModule :: Unsupported token type {moduleTokenType}."),
+            };
         }
 
         /// <summary>
@@ -183,12 +183,12 @@ namespace Chi.Parsing
         {
             // Match definition identifier.
             var token = Match(TokenType.Identifier);
-            
+            var identifier = token.Text;
+            var symbol = Symbols.GetOrCreate(identifier);
+
             // Match definition parameters (zero or more).
             var parameters = ParseDefinitionParameters();
 
-            var identifier = token.Text;
-            var symbol = SymbolTable.GetOrCreate(identifier);
             return (symbol, parameters);
         }
 
@@ -218,7 +218,7 @@ namespace Chi.Parsing
                 // Match Identifier.
                 var token = Match(TokenType.Identifier);
                 var identifier = token.Text;
-                var symbol = SymbolTable.GetOrCreate(identifier);
+                var symbol = Symbols.GetOrCreate(identifier);
                 parameters.Add(symbol);
 
                 // Match Comma, except for last parameter.
@@ -280,7 +280,7 @@ namespace Chi.Parsing
                 // Identifier rule.
                 var token = Match(TokenType.Identifier);
                 var identifier = token.Text;
-                var symbol = SymbolTable.GetOrCreate(identifier);
+                var symbol = Symbols.GetOrCreate(identifier);
                 expression = new IdentifierNode(symbol);
             }
             else if (Current.Type == TokenType.ParenOpen)
@@ -312,9 +312,11 @@ namespace Chi.Parsing
                 Match(TokenType.ParenOpen);
 
                 var token = Match(TokenType.Identifier);
-                var rValue = default(IExpressionNode?);
+                var identifier = token.Text;
+                var symbol = Symbols.GetOrCreate(identifier);
 
                 // Match optional value assignment.
+                var rValue = default(IExpressionNode?);
                 if (Current.Type == TokenType.Equal)
                 {
                     Match(TokenType.Equal);
@@ -323,9 +325,7 @@ namespace Chi.Parsing
 
                 Match(TokenType.ParenClose);
 
-                var identifier = token.Text;
-                var symbol = SymbolTable.GetOrCreate(identifier);
-                expression = new VarNode(symbol, rValue);
+                expression = new VarNode(new IdentifierNode(symbol), rValue);
             }
             else if (Current.Type == TokenType.Set)
             {
@@ -364,8 +364,8 @@ namespace Chi.Parsing
                         // Member access rule (x.y).
                         var token = Match(TokenType.Identifier);
                         var identifier = token.Text;
-                        var symbol = SymbolTable.GetOrCreate(identifier);
-                        expression = new AccessNode(expression, symbol);
+                        var symbol = Symbols.GetOrCreate(identifier);
+                        expression = new AccessNode(expression, new IdentifierNode(symbol));
                     }
                 }
                 else if (Current.Type == TokenType.ParenOpen)
@@ -510,7 +510,7 @@ namespace Chi.Parsing
                 return new CloseNode(closedExpression, default);
             }
 
-            var bindings = new List<(Symbol name, IExpressionNode expression)>();
+            var bindings = new List<(IdentifierNode name, IExpressionNode expression)>();
             do
             {
                 // Shielded identifers are only supported for close parameters for now.
@@ -524,12 +524,13 @@ namespace Chi.Parsing
                 }
 
                 var token = Match(TokenType.Identifier);
-                Match(TokenType.Equal);
-                var argumentExpression = ParseExpression();
-
                 var identifier = (shielded ? "$" : "") + token.Text;
-                var symbol = SymbolTable.GetOrCreate(identifier);
-                bindings.Add((symbol, argumentExpression));
+                var symbol = Symbols.GetOrCreate(identifier);
+
+                Match(TokenType.Equal);
+
+                var argumentExpression = ParseExpression();
+                bindings.Add((new IdentifierNode(symbol), argumentExpression));
 
                 if (Current.Type != TokenType.ParenClose)
                     Match(TokenType.Comma);
@@ -544,48 +545,47 @@ namespace Chi.Parsing
 
         #region Print Helpers
 
-        public void Print(ISyntaxNode node) =>
+        public static void Print(ISyntaxNode node) =>
             PrintTree(node);
 
-        private void PrintTree(ISyntaxNode node, bool isSequenceMiddle = false)
+        private static void PrintTree(ISyntaxNode node, bool isSequenceMiddle = false)
         {
             int i;
             switch (node)
             {
-                case ProgramNode programNode:
-                    Output.Write($"Program {{ ", ConsoleColor.Green);
+                case ModuleNode moduleNode:
+
+                    switch (moduleNode)
+                    {
+                        case ProgramNode programNode:
+                            Output.Write($"Program {{ ", ConsoleColor.Blue);
+                            break;
+
+                        case TestNode testNode:
+                            Output.Write($"Test {testNode.Name.Value.String} {{ ", ConsoleColor.Blue);
+                            break;
+                        
+                        case ModuleNode programNode:
+                            Output.Write($"Module {moduleNode.Name.Value.String} {{ ", ConsoleColor.Blue);
+                            break;
+
+                        default:
+                            throw new NotSupportedException($"Parser :: Print :: Unsupported node type {moduleNode.GetType().Name}.");
+                    }
 
                     i = 0;
-                    foreach (var instruction in programNode.Instructions)
+                    foreach (var instruction in moduleNode.Instructions)
                     {
                         Output.Write($"Instruction #{i} {{ ", ConsoleColor.Green);
                         PrintTree(instruction);
                         Output.Write($" }} ", ConsoleColor.Green);
 
-                        if (i < programNode.Instructions.Count - 1)
+                        if (i < moduleNode.Instructions.Count - 1)
                             Output.Write($" ; ", ConsoleColor.Green);
                         i++;
                     }
 
                     Output.Write($" }} ", ConsoleColor.Green);
-                    break;
-
-                case TestNode testNode:
-                    Output.Write($"Test {testNode.Name.Identifier} {{ ", ConsoleColor.Blue);
-
-                    i = 0;
-                    foreach (var instruction in testNode.Instructions)
-                    {
-                        Output.Write($"Instruction #{i} {{ ", ConsoleColor.Green);
-                        PrintTree(instruction);
-                        Output.Write($" }} ", ConsoleColor.Green);
-
-                        if (i < testNode.Instructions.Count - 1)
-                            Output.Write($" ; ", ConsoleColor.Green);
-                        i++;
-                    }
-
-                    Output.Write($" }} ", ConsoleColor.Blue);
                     break;
 
                 case WildcardNode:
@@ -605,15 +605,15 @@ namespace Chi.Parsing
                     break;
 
                 case IdentifierNode identifierNode:
-                    Output.Write($"[Identifier {identifierNode.Value.Identifier}]", ConsoleColor.White);
+                    Output.Write($"[Identifier {identifierNode.Value.String}]", ConsoleColor.White);
                     break;
 
                 case DefinitionNode definitionNode:
                     var parameterList = definitionNode.Parameters != default ? 
-                        string.Join(",", definitionNode.Parameters.Select(p => p.Identifier)) : 
+                        string.Join(",", definitionNode.Parameters.Select(p => p.String)) : 
                         string.Empty;
                     
-                    Output.Write($"Definition {definitionNode.Name.Identifier}({parameterList}) {{ ", ConsoleColor.Blue);
+                    Output.Write($"Definition {definitionNode.Name.String}({parameterList}) {{ ", ConsoleColor.Blue);
 
                     if (definitionNode.Expression != default)
                         PrintTree(definitionNode.Expression);
@@ -704,7 +704,7 @@ namespace Chi.Parsing
                         i = 0;
                         foreach (var (name, expression) in closeNode.Bindings)
                         {
-                            Output.Write($"Binding #{i}:{name.Identifier} {{ ", ConsoleColor.Magenta);
+                            Output.Write($"Binding #{i}:{name.Value.String} {{ ", ConsoleColor.Magenta);
                             PrintTree(expression);
                             Output.Write($" }} ", ConsoleColor.Magenta);
 
@@ -744,7 +744,7 @@ namespace Chi.Parsing
                     PrintTree(accessNode.Expression);
                     Output.Write($" }} ", ConsoleColor.Magenta);
                     Output.Write($"Member: ", ConsoleColor.Magenta);
-                    Output.Write($"[Identifier {accessNode.Member.Identifier}]", ConsoleColor.White);
+                    Output.Write($"[Identifier {accessNode.Member.Value.String}]", ConsoleColor.White);
                     Output.Write($" }} ", ConsoleColor.Magenta);
                     break;
 
@@ -782,7 +782,7 @@ namespace Chi.Parsing
                     break;
 
                 default:
-                    throw new NotSupportedException($"{nameof(Output)}.{nameof(Parser)}: Unsupported node type {node.GetType().Name}.");
+                    throw new NotSupportedException($"Parser :: Print :: Unsupported node type {node.GetType().Name}.");
             }
         }
 

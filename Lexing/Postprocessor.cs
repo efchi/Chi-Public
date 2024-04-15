@@ -101,7 +101,7 @@ namespace Chi.Lexing
                 }
             }
 
-            return tokens;
+            return tokens.ToArray();
         }
     }
 }

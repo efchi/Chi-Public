@@ -1,6 +1,6 @@
-﻿using Chi.Runtime.Data.Abstract;
+﻿using Chi.Runtime.Values.Abstract;
 
-namespace Chi.Runtime.Data
+namespace Chi.Runtime.Values
 {
     public class Number : IValueNode 
     {

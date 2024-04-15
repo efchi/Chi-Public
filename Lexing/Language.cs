@@ -77,6 +77,7 @@ namespace Chi.Lexing
                 Keywords.Var => TokenType.Var,
                 Keywords.Set => TokenType.Set,
                 Keywords.Test => TokenType.Test,
+                Keywords.Module => TokenType.Module,
                 _ => default(TokenType?)
             };
 
@@ -134,6 +135,7 @@ namespace Chi.Lexing
             TokenType.Var => TokenKind.Keyword,
             TokenType.Set => TokenKind.Keyword,
             TokenType.Test => TokenKind.Keyword,
+            TokenType.Module => TokenKind.Keyword,
             TokenType.Integer => TokenKind.Number,
             TokenType.Decimal => TokenKind.Number,
             TokenType.Identifier => TokenKind.Identifier,

@@ -1,7 +1,9 @@
 ﻿using System.Text;
-using Chi.Infra;
-using Chi.Runtime.Data;
-using Chi.Runtime.Data.Abstract;
+using Chi.Parsing.Data;
+using Chi.Parsing.Syntax;
+using Chi.Runtime.Values;
+using Chi.Runtime.Values.Abstract;
+using Chi.Semanting;
 
 namespace Chi.Runtime
 {
@@ -32,11 +34,45 @@ namespace Chi.Runtime
                         return;
 
                     case Open open:
-                        builder.Append((verbose ? "opn:" : "") + open.Value.Identifier);
+                        builder.Append((verbose ? "opn:" : "") + open.Value.String);
                         return;
 
                     case Definition definition:
-                        builder.Append((verbose ? "def:" : "") + definition.Node.Name.Identifier);
+                        builder.Append((verbose ? "def:" : "") + definition.Node.Name.String);
+                        return;
+
+                    case Module module:
+                        builder.Append((verbose ? "mod:" : "") + module.Node.Name.Value.String);
+                        if (verbose)
+                        { 
+                            builder.Append('{');
+                            i = 0;
+                            count = module.Node.Scope.Count;
+                            foreach (var item in module.Node.Scope)
+                            {
+                                if (i++ == 0)
+                                    continue; // Skipping self-references.
+
+                                switch(item.Kind)
+                                {
+                                    case DeclarationKind.Def:
+                                        builder.Append("def:" + ((DefinitionNode)item.Node).Signature.String);
+                                        break;
+                                    case DeclarationKind.Module:
+                                        SerializeRecursive(((ModuleNode)item.Node).Value, verbose, builder);
+                                        break;
+                                    case DeclarationKind.Var:
+                                        builder.Append("var:" + item.Symbol.String);
+                                        break;
+                                    default:
+                                        throw new NotImplementedException();
+                                }
+                                
+                                if (i++ < count - 1)
+                                    builder.Append(',');
+                            }
+                            builder.Append('}');
+                        }
                         return;
 
                     case IPrimitive primitive:
@@ -58,7 +94,7 @@ namespace Chi.Runtime
                             builder.Append(')');
                         return;
 
-                    case Data.Tuple tuple:
+                    case Values.Tuple tuple:
                         builder.Append('{');
                         i = 0;
                         count = tuple.Count;
@@ -92,7 +128,7 @@ namespace Chi.Runtime
                         count = state.Count;
                         foreach (var (symbolCode, value) in state)
                         {
-                            builder.Append(symbols.GetByCode(symbolCode).Identifier);
+                            builder.Append(symbols.GetByCode(symbolCode).String);
                             builder.Append('=');
                             SerializeRecursive(value, verbose, builder);
                             if (i++ < count - 1)

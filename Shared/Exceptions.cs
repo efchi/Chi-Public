@@ -2,6 +2,8 @@
 
 namespace Chi
 {
+    #region Generic Exceptions
+
     class UsageException : Exception
     {
         public UsageException(string message) : base(message)
@@ -19,6 +21,10 @@ namespace Chi
         {
         }
     }
+
+    #endregion
+
+    #region Syntax Exceptions
 
     abstract class SyntaxException : Exception
     {
@@ -51,6 +57,28 @@ namespace Chi
         }
     }
 
+    #endregion
+
+    #region Semantic Exception
+
+    abstract class SemanticException : Exception
+    {
+        public SemanticException(string message) : base(message)
+        {
+        }
+    }
+
+    class AlreadyDeclaredException : SemanticException
+    {
+        public AlreadyDeclaredException(string message) : base(message)
+        {
+        }
+    }
+
+    #endregion
+
+    #region Runtime Exceptions
+
     class RuntimeException : Exception
     {
         public RuntimeException(string message) : base(message)
@@ -64,4 +92,6 @@ namespace Chi
         {
         }
     }
+
+    #endregion
 }

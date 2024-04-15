@@ -1,4 +1,6 @@
 
+# NOTE: DO NOT USE VAR WITHOUT ;
+
 test state-global
 {
 	# Using global state for iteration.
@@ -38,7 +40,8 @@ test state-access-1
 	var(a);
 	set(a.x = 42); 
 
-	var(b)
+	# OLD: var(b) with no ; (error)
+	var(b);
 	set(b.x.y = 43); 
 
 	def T() => a.x :: b.x.y;
@@ -92,7 +95,7 @@ test state-objects-nested
 	set(state1.substate = state2); 
 	set(state2.my-key = my-value-A); 
 	
-	var(state3)
+	var(state3);
 	set(state3.substate.my-key = my-value-B); 
 	
 	def T() => state1.substate.my-key :: state3.substate.my-key;

@@ -1,7 +1,7 @@
-﻿using Chi.Infra;
-using Chi.Runtime.Data.Abstract;
+﻿using Chi.Parsing.Data;
+using Chi.Runtime.Values.Abstract;
 
-namespace Chi.Runtime.Data
+namespace Chi.Runtime.Values
 {
     public class Open : IValueNode
     {

@@ -1,7 +1,7 @@
-﻿using Chi.Infra;
-using Chi.Runtime.Data.Abstract;
+﻿using Chi.Runtime.Data;
+using Chi.Runtime.Values.Abstract;
 
-namespace Chi.Runtime.Data
+namespace Chi.Runtime.Values
 {
     // Interpreter.EvalSet() assigns values both in Scopes (root identifier) and States (accessed/indexed subsequent identifiers).
     // Since a State is basically a Dictionary, we turn it into a FixedScope (that is an IScope) so that EvalSet can
